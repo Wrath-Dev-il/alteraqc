@@ -1,0 +1,17 @@
+-- Sample audience members for testing segment evaluation
+USE LGU;
+
+INSERT INTO `campaign_department_audience_segments` (segment_name, criteria) VALUES
+('Sample Residents', JSON_OBJECT('channel', JSON_ARRAY('email','sms')))
+ON DUPLICATE KEY UPDATE criteria = VALUES(criteria);
+
+SET @segment_id = (SELECT id FROM `campaign_department_audience_segments` WHERE segment_name = 'Sample Residents' LIMIT 1);
+
+INSERT INTO `campaign_department_audience_members` (segment_id, full_name, contact, channel) VALUES
+(@segment_id, 'Ana Santos', 'ana@example.com', 'email'),
+(@segment_id, 'Ben Cruz', '09171234567', 'sms'),
+(@segment_id, 'Carla Reyes', 'carla@example.com', 'email'),
+(@segment_id, 'David Lee', NULL, 'other')
+ON DUPLICATE KEY UPDATE contact = VALUES(contact), channel = VALUES(channel);
+
+

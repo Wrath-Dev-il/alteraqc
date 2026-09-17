@@ -1,0 +1,145 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Middleware;
+
+use PDO;
+use RuntimeException;
+
+class RoleMiddleware
+{
+    /**
+     * Check if user has required role(s)
+     * 
+     * @param array|null $user User array from JWT
+     * @param array|string $allowedRoles Role name(s) or array of role names
+     * @param PDO $pdo Database connection
+     * @return bool
+     * @throws RuntimeException if user doesn't have required role
+     */
+    public static function requireRole(?array $user, array|string $allowedRoles, PDO $pdo): bool
+    {
+        if (!$user || !isset($user['role_id'])) {
+            throw new RuntimeException('User not authenticated');
+        }
+
+        $allowedRoles = is_array($allowedRoles) ? $allowedRoles : [$allowedRoles];
+        $roleId = (int) $user['role_id'];
+
+        // Get user's role name
+        $stmt = $pdo->prepare('SELECT name FROM campaign_department_roles WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $roleId]);
+        $role = $stmt->fetch();
+
+        if (!$role) {
+            throw new RuntimeException('User role not found');
+        }
+
+        $userRoleName = $role['name'];
+
+        // Check if user's role is in allowed roles
+        if (!in_array($userRoleName, $allowedRoles, true)) {
+            throw new RuntimeException('Insufficient permissions');
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if user has specific permission
+     * 
+     * @param array|null $user User array from JWT
+     * @param string $permission Permission name (e.g., 'campaigns.create')
+     * @param PDO $pdo Database connection
+     * @return bool
+     * @throws RuntimeException if user doesn't have permission
+     */
+    public static function requirePermission(?array $user, string $permission, PDO $pdo): bool
+    {
+        if (!$user || !isset($user['role_id'])) {
+            throw new RuntimeException('User not authenticated');
+        }
+
+        $roleId = (int) $user['role_id'];
+
+        // Check if role has permission
+        $stmt = $pdo->prepare('
+            SELECT COUNT(*) 
+            FROM campaign_department_role_permissions rp
+            INNER JOIN campaign_department_permissions p ON p.id = rp.permission_id
+            WHERE rp.role_id = :role_id AND p.name = :permission
+        ');
+        $stmt->execute(['role_id' => $roleId, 'permission' => $permission]);
+        $hasPermission = (int) $stmt->fetchColumn() > 0;
+
+        if (!$hasPermission) {
+            throw new RuntimeException('Insufficient permissions: ' . $permission);
+        }
+
+        return true;
+    }
+
+    /**
+     * Get user's role name
+     */
+    public static function getUserRole(?array $user, ?PDO $pdo): ?string
+    {
+        if (!$user) {
+            return null;
+        }
+
+        // Check if user has role directly (from campaign_users table via OTP login)
+        if (isset($user['role']) && !empty($user['role'])) {
+            return $user['role'];
+        }
+
+        // Check if user has user_type (from campaign_users table)
+        if (isset($user['user_type']) && !empty($user['user_type'])) {
+            return $user['user_type'];
+        }
+
+        if (!isset($user['role_id'])) {
+            return null;
+        }
+
+        if ($pdo === null) {
+            // If PDO is null, return null (can't query database)
+            return null;
+        }
+
+        // Query campaign_department_roles for role_id > 0
+        $roleId = (int) $user['role_id'];
+        if ($roleId <= 0) {
+            return null;
+        }
+
+        try {
+            $stmt = $pdo->prepare('SELECT name FROM campaign_department_roles WHERE id = :id LIMIT 1');
+            $stmt->execute(['id' => $roleId]);
+            $role = $stmt->fetch();
+
+            return $role ? $role['name'] : null;
+        } catch (\Exception $e) {
+            error_log('RoleMiddleware::getUserRole - Error querying database: ' . $e->getMessage());
+            return null;
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

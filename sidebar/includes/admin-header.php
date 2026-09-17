@@ -1,0 +1,1753 @@
+<?php
+/**
+ * Reusable Admin Header Component - Improved Design
+ * Include this file in your pages: <?php include 'sidebar/admin-header.php'; ?>
+ * 
+ * Features:
+ * - Responsive menu toggle
+ * - Notification and message icons with badges (outlined style)
+ * - User profile with avatar and info
+ * - Dark mode support
+ * - Clean, modern design
+ */
+?>
+
+<?php
+require_once __DIR__ . '/../../header/includes/path_helper.php';
+?>
+<link rel="stylesheet" href="<?php echo htmlspecialchars($basePath . '/sidebar/css/notification-modal.css'); ?>">
+<link rel="stylesheet" href="<?php echo htmlspecialchars($basePath . '/sidebar/css/message-modal.css'); ?>">
+<link rel="stylesheet" href="<?php echo htmlspecialchars($basePath . '/sidebar/css/message-content-modal.css'); ?>">
+
+<!-- Admin Header Component -->
+<header class="admin-header">
+    <div class="admin-header-left">
+        <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+            <i class="fas fa-bars"></i>
+        </button>
+        <button class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="Toggle sidebar" title="Hide/Show Sidebar">
+            <i class="fas fa-angles-left" id="sidebarToggleIcon"></i>
+        </button>
+        <div class="search-container">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" class="search-input" placeholder="Search...">
+        </div>
+    </div>
+    
+    <div class="admin-header-right">
+        <div class="header-actions">
+            <div class="notification-item">
+                <button class="notification-btn" aria-label="Notifications">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+                </button>
+            </div>
+            
+            <div class="notification-item">
+                <button class="notification-btn" aria-label="Messages">
+                    <i class="fas fa-envelope"></i>
+                    <span class="notification-badge" id="messageBadge" style="display: none;">0</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="header-divider"></div>
+        
+        <div class="user-profile" id="userProfileBtn">
+            <div class="user-info">
+                <div class="user-name" id="headerUserName">Loading...</div>
+                <div class="user-role" id="headerUserRole">Loading...</div>
+            </div>
+            <div class="user-avatar">
+                <img id="headerUserAvatar" src="https://ui-avatars.com/api/?name=User&background=4c8a89&color=fff&size=128" alt="User" class="avatar-img">
+            </div>
+            <i class="fas fa-chevron-down dropdown-icon"></i>
+        </div>
+    </div>
+</header>
+
+<!-- User Profile Dropdown -->
+<div class="user-profile-dropdown" id="userProfileDropdown">
+    <div class="dropdown-header">
+        <div class="dropdown-user-info">
+            <div class="dropdown-user-avatar">
+                <img id="dropdownUserAvatar" src="https://ui-avatars.com/api/?name=User&background=4c8a89&color=fff&size=128" alt="User">
+            </div>
+            <div class="dropdown-user-details">
+                <div class="dropdown-user-name" id="dropdownUserName">Loading...</div>
+                <div class="dropdown-user-email" id="dropdownUserEmail">Loading...</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="dropdown-body">
+        <a href="<?php echo $publicPath; ?>/profile.php" class="dropdown-item">
+            <i class="fas fa-user"></i>
+            <span>Profile</span>
+        </a>
+        <a href="<?php echo $publicPath; ?>/user_management.php" class="dropdown-item">
+            <i class="fas fa-users-cog"></i>
+            <span>User Management</span>
+        </a>
+        <a href="<?php echo $publicPath; ?>/audit_log.php" class="dropdown-item">
+            <i class="fas fa-history"></i>
+            <span>Audit Log</span>
+        </a>
+        <a href="<?php echo $publicPath; ?>/settings.php" class="dropdown-item">
+            <i class="fas fa-cog"></i>
+            <span>Settings</span>
+        </a>
+    </div>
+    
+    <div class="dropdown-footer">
+        <a href="#" class="dropdown-item logout-item" id="logoutBtn">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Logout</span>
+        </a>
+    </div>
+</div>
+
+<!-- Notification Modal -->
+<div class="notification-modal" id="notificationModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Notifications</h3>
+            <button class="modal-close" onclick="closeModal('notificationModal')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body" id="notificationBody">
+            <div style="text-align: center; padding: 24px; color: #64748b;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 8px;"></i>
+                <div>Loading notifications...</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="view-all-link" onclick="markAllNotificationsRead()" style="background: none; border: none; cursor: pointer; padding: 0.5rem 1rem;">Mark All Read</button>
+            <a href="#" class="view-all-link" onclick="loadAllNotifications()">View All Notifications</a>
+        </div>
+    </div>
+</div>
+
+<!-- Message Modal -->
+<div class="notification-modal" id="messageModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Messages</h3>
+            <button class="modal-close" onclick="closeModal('messageModal')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body" id="messageBody">
+            <div style="text-align: center; padding: 24px; color: #64748b;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 8px;"></i>
+                <div>Loading messages...</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <a href="#" class="view-all-link" onclick="loadAllMessages()">View All Messages</a>
+        </div>
+    </div>
+</div>
+
+<!-- Message Content Modal -->
+<div class="message-content-modal" id="messageContentModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="message-header-info">
+                <img id="messageUserAvatar" src="" alt="" class="message-user-avatar">
+                <div class="message-user-info">
+                    <h3 id="messageUserName"></h3>
+                    <span id="messageUserStatus"></span>
+                </div>
+            </div>
+            <button class="modal-close" onclick="closeModal('messageContentModal')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body message-chat-body">
+            <div id="messageContent"></div>
+        </div>
+        <div class="modal-footer message-reply-footer">
+            <div class="message-reply-box">
+                <input type="text" id="messageReplyInput" placeholder="Type a message..." class="message-input">
+                <button class="send-message-btn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Logout Confirmation Modal -->
+<div class="logout-confirm-modal" id="logoutConfirmModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 10001; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div style="background: white; border-radius: 20px; padding: 32px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); animation: modalSlideIn 0.3s ease;">
+        <button id="logoutModalClose" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 20px; color: #64748b; cursor: pointer; padding: 8px; border-radius: 8px; transition: all 0.2s;">
+            <i class="fas fa-times"></i>
+        </button>
+        <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px;">
+            <i class="fas fa-sign-out-alt" style="font-size: 32px; color: #dc2626;"></i>
+        </div>
+        <h3 style="margin: 0 0 12px; font-size: 24px; font-weight: 700; color: #0f172a;">Confirm Logout</h3>
+        <p style="margin: 0 0 28px; color: #64748b; font-size: 15px; line-height: 1.6;">Are you sure you want to logout? You will need to login again to access the system.</p>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <button id="logoutCancelBtn" style="padding: 12px 28px; background: #f1f5f9; color: #475569; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                Cancel
+            </button>
+            <button id="logoutConfirmBtn" style="padding: 12px 28px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);">
+                <i class="fas fa-sign-out-alt" style="margin-right: 8px;"></i>Yes, Logout
+            </button>
+        </div>
+    </div>
+</div>
+<style>
+    @keyframes modalSlideIn {
+        from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    #logoutCancelBtn:hover { background: #e2e8f0; }
+    #logoutConfirmBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4); }
+    #logoutModalClose:hover { background: #f1f5f9; color: #0f172a; }
+</style>
+
+<script>
+// Admin Header functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Load current user information
+    async function loadCurrentUser() {
+        try {
+            // Clear old cached user data to ensure we always fetch fresh data
+            try {
+                localStorage.removeItem('currentUser');
+            } catch (e) {
+                console.warn('Could not clear cached user data:', e);
+            }
+            
+            const token = localStorage.getItem('jwtToken') || '';
+            console.log('loadCurrentUser - Token:', token ? 'EXISTS (length: ' + token.length + ')' : 'MISSING');
+            if (!token || token.trim() === '') {
+                // Token check already handled by auth guard - just return
+                console.warn('loadCurrentUser - No token available');
+                return;
+            }
+            
+            const apiBase = '<?php echo $apiPath; ?>';
+            const apiUrl = apiBase + '/api/v1/users/me';
+            console.log('loadCurrentUser - Calling API:', apiUrl);
+            console.log('loadCurrentUser - Token being sent:', token ? 'EXISTS (length: ' + token.length + ')' : 'MISSING');
+            console.log('loadCurrentUser - Token first 20 chars:', token ? token.substring(0, 20) + '...' : 'N/A');
+            console.log('loadCurrentUser - Authorization header:', 'Bearer ' + (token ? token.substring(0, 20) + '...' : 'MISSING'));
+            
+            // Ensure token is not empty before making request
+            if (!token || token.trim() === '') {
+                console.error('loadCurrentUser() - Token is empty, cannot make API call');
+                console.error('loadCurrentUser() - localStorage keys:', Object.keys(localStorage));
+                return;
+            }
+            
+            const res = await fetch(apiUrl, {
+                headers: { 
+                    'Authorization': 'Bearer ' + token.trim(),
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            console.log('loadCurrentUser - Response status:', res.status);
+            console.log('loadCurrentUser - Response URL:', res.url);
+            
+            if (!res.ok) {
+                if (res.status === 401) {
+                    // Token expired or invalid - clear cached data and show default
+                    console.warn('401 Unauthorized - Clearing cached user data');
+                    try {
+                        localStorage.removeItem('currentUser');
+                    } catch (e) {
+                        console.error('Error clearing cached user data:', e);
+                    }
+                    
+                    // Try to get response body for more info
+                    try {
+                        const errorData = await res.json();
+                        console.error('Error response:', errorData);
+                    } catch (e) {
+                        console.error('Could not parse error response');
+                    }
+                    
+                    // Show default user
+                    updateUserDisplay({ name: 'User', email: '', role_id: null });
+                    return;
+                }
+                throw new Error('Failed to load user info');
+            }
+            
+            const data = await res.json();
+            console.log('=== TASK 2 PROOF: API Response data ===', JSON.stringify(data, null, 2));
+            const user = data.user || data.data || data;
+            console.log('=== TASK 2 PROOF: Extracted user object ===', JSON.stringify(user, null, 2));
+            
+            // TASK 3: PROVE WHERE "User" IS COMING FROM
+            console.log('=== TASK 3 PROOF: user.name value ===', user.name);
+            console.log('=== TASK 3 PROOF: user.name type ===', typeof user.name);
+            console.log('=== TASK 3 PROOF: user.name truthy check ===', !!user.name);
+            console.log('=== TASK 3 PROOF: user.name || "User" result ===', user.name || 'User');
+            
+            // Validate that we have valid user data with email
+            if (!user || !user.email) {
+                console.error('Invalid user data received from API:', user);
+                console.error('Full API response:', data);
+                throw new Error('Invalid user data received');
+            }
+            
+            console.log('User email from API:', user.email);
+            console.log('User ID from API:', user.id);
+            
+            // Store fresh user data in localStorage for fallback
+            try {
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                console.log('Stored fresh user data for:', user.email);
+            } catch (e) {
+                console.warn('Could not store user data in localStorage:', e);
+            }
+            
+            updateUserDisplay(user);
+        } catch (err) {
+            console.error('Failed to load user info:', err);
+            // Don't use cached data on error - show default to force fresh fetch on retry
+            updateUserDisplay({ name: 'User', email: '', role_id: null });
+        }
+    }
+    
+    // Helper function to update user display
+    function updateUserDisplay(user) {
+        if (!user) {
+            user = { name: 'User', email: '', role_id: null };
+        }
+        
+        // Store userId for message functions
+        if (user.id) {
+            localStorage.setItem('userId', user.id.toString());
+        }
+        
+        // Update header user info
+        const userNameEl = document.getElementById('headerUserName');
+        const userRoleEl = document.getElementById('headerUserRole');
+        const userAvatarEl = document.getElementById('headerUserAvatar');
+        
+        // TASK 3: PROVE WHERE "User" IS COMING FROM
+        console.log('=== TASK 3 PROOF: updateUserDisplay called with user.name ===', user.name);
+        console.log('=== TASK 3 PROOF: user.name || "User" will result in ===', user.name || 'User');
+        if (userNameEl) {
+            const finalName = user.name || 'User';
+            console.log('=== TASK 3 PROOF: Setting headerUserName.textContent to ===', finalName);
+            userNameEl.textContent = finalName;
+        }
+        if (userRoleEl) {
+            // Use role name from API if available, otherwise fallback to hardcoded mapping
+            let roleDisplayName = user.role || 'User';
+            
+            // Fallback mapping for legacy role_ids (if role name not in API response)
+            if (!user.role && user.role_id) {
+                const roleNames = {
+                    1: 'Barangay Administrator',
+                    2: 'Barangay Staff',
+                    3: 'School Partner',
+                    4: 'NGO Partner'
+                };
+                roleDisplayName = roleNames[user.role_id] || 'User';
+            }
+            
+            // Capitalize first letter of each word for display
+            roleDisplayName = roleDisplayName.split(' ').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            ).join(' ');
+            
+            userRoleEl.textContent = roleDisplayName;
+        }
+        if (userAvatarEl) {
+            // Use avatar_url if available, otherwise use initials
+            if (user.avatar_url) {
+                userAvatarEl.src = user.avatar_url;
+            } else {
+                const encodedName = encodeURIComponent(user.name || 'User');
+                userAvatarEl.src = `https://ui-avatars.com/api/?name=${encodedName}&background=4c8a89&color=fff&size=128`;
+            }
+            userAvatarEl.alt = user.name || 'User';
+        }
+        
+        // Update dropdown user info
+        const dropdownNameEl = document.getElementById('dropdownUserName');
+        const dropdownEmailEl = document.getElementById('dropdownUserEmail');
+        const dropdownAvatarEl = document.getElementById('dropdownUserAvatar');
+        
+        console.log('Updating dropdown - Name:', user.name, 'Email:', user.email);
+        if (dropdownNameEl) dropdownNameEl.textContent = user.name || 'User';
+        if (dropdownEmailEl) {
+            dropdownEmailEl.textContent = user.email || '';
+            console.log('Dropdown email element updated to:', user.email);
+        }
+        if (dropdownAvatarEl) {
+            // Use avatar_url if available, otherwise use initials
+            if (user.avatar_url) {
+                dropdownAvatarEl.src = user.avatar_url;
+            } else {
+                const encodedName = encodeURIComponent(user.name || 'User');
+                dropdownAvatarEl.src = `https://ui-avatars.com/api/?name=${encodedName}&background=4c8a89&color=fff&size=128`;
+            }
+            dropdownAvatarEl.alt = user.name || 'User';
+        }
+    }
+    
+    // Load user info on page load
+    loadCurrentUser();
+    
+    // Load notification count on page load
+    loadNotificationCount();
+    
+    // Refresh notification count every 30 seconds
+    setInterval(loadNotificationCount, 30000);
+    
+    // Logout functionality with confirmation modal
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            showLogoutModal();
+        });
+    }
+    
+    // Show logout confirmation modal
+    function showLogoutModal() {
+        const modal = document.getElementById('logoutConfirmModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            // Close user profile dropdown
+            const userProfileDropdown = document.getElementById('userProfileDropdown');
+            if (userProfileDropdown) userProfileDropdown.classList.remove('show');
+        }
+    }
+    
+    // Hide logout confirmation modal
+    function hideLogoutModal() {
+        const modal = document.getElementById('logoutConfirmModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    // Confirm logout
+    function confirmLogout() {
+        try {
+            localStorage.removeItem('jwtToken');
+            localStorage.removeItem('currentUser');
+        } catch (e) {
+            console.error('Error clearing localStorage:', e);
+        }
+        const basePath = '<?php echo $basePath; ?>';
+        window.location.href = basePath + '/login.php';
+    }
+    
+    // Attach logout modal event listeners
+    const logoutConfirmBtn = document.getElementById('logoutConfirmBtn');
+    const logoutCancelBtn = document.getElementById('logoutCancelBtn');
+    const logoutModalClose = document.getElementById('logoutModalClose');
+    const logoutConfirmModal = document.getElementById('logoutConfirmModal');
+    
+    if (logoutConfirmBtn) {
+        logoutConfirmBtn.addEventListener('click', confirmLogout);
+    }
+    if (logoutCancelBtn) {
+        logoutCancelBtn.addEventListener('click', hideLogoutModal);
+    }
+    if (logoutModalClose) {
+        logoutModalClose.addEventListener('click', hideLogoutModal);
+    }
+    if (logoutConfirmModal) {
+        logoutConfirmModal.addEventListener('click', function(e) {
+            if (e.target === this) hideLogoutModal();
+        });
+    }
+    const menuToggle = document.getElementById('menuToggle');
+    
+    // Toggle sidebar from header menu button (mobile)
+    if (menuToggle) {
+        menuToggle.addEventListener('click', function() {
+            // Use the global sidebarToggle function exposed by sidebar.php
+            if (typeof window.sidebarToggle === 'function') {
+                window.sidebarToggle();
+            } else {
+                console.warn('Sidebar toggle function not found. Make sure sidebar.php is included before admin-header.php');
+            }
+        });
+    }
+    
+    // Sidebar toggle button for desktop (hide/show sidebar)
+    const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggleIcon = document.getElementById('sidebarToggleIcon');
+    
+    if (sidebarToggleBtn && sidebar) {
+        sidebarToggleBtn.addEventListener('click', function() {
+            // Toggle collapsed state
+            sidebar.classList.toggle('sidebar-collapsed');
+            document.body.classList.toggle('sidebar-collapsed-mode');
+            
+            // Update icon
+            if (sidebar.classList.contains('sidebar-collapsed')) {
+                sidebarToggleIcon.className = 'fas fa-angles-right';
+                sidebarToggleBtn.title = 'Show Sidebar';
+            } else {
+                sidebarToggleIcon.className = 'fas fa-angles-left';
+                sidebarToggleBtn.title = 'Hide Sidebar';
+            }
+            
+            // Save preference to localStorage
+            try {
+                localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('sidebar-collapsed'));
+            } catch (e) {
+                console.warn('Could not save sidebar state:', e);
+            }
+        });
+        
+        // Restore sidebar state from localStorage on page load
+        try {
+            const sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            if (sidebarCollapsed) {
+                sidebar.classList.add('sidebar-collapsed');
+                document.body.classList.add('sidebar-collapsed-mode');
+                sidebarToggleIcon.className = 'fas fa-angles-right';
+                sidebarToggleBtn.title = 'Show Sidebar';
+            }
+        } catch (e) {
+            console.warn('Could not restore sidebar state:', e);
+        }
+    }
+    
+    // Auto-hide sidebar when clicking on main content (desktop only)
+    const mainContent = document.querySelector('.main-content-wrapper');
+    if (mainContent && sidebar && window.innerWidth > 768) {
+        mainContent.addEventListener('click', function(e) {
+            // Only auto-hide on desktop and if sidebar is open
+            if (window.innerWidth > 768 && !sidebar.classList.contains('sidebar-collapsed')) {
+                // Don't hide if clicking on interactive elements that might need the sidebar
+                if (!e.target.closest('button') && !e.target.closest('a')) {
+                    sidebar.classList.add('sidebar-collapsed');
+                    document.body.classList.add('sidebar-collapsed-mode');
+                    if (sidebarToggleIcon) {
+                        sidebarToggleIcon.className = 'fas fa-angles-right';
+                    }
+                    if (sidebarToggleBtn) {
+                        sidebarToggleBtn.title = 'Show Sidebar';
+                    }
+                    try {
+                        localStorage.setItem('sidebarCollapsed', 'true');
+                    } catch (e) {
+                        console.warn('Could not save sidebar state:', e);
+                    }
+                }
+            }
+        });
+    }
+    
+    // Search functionality
+    const searchInput = document.querySelector('.admin-header .search-input');
+    let searchTimeout = null;
+    let searchDropdown = null;
+    
+    // Local escapeHtml for search (defined early to avoid hoisting issues)
+    function escapeHtmlSearch(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Create search dropdown
+    function createSearchDropdown() {
+        if (searchDropdown) return searchDropdown;
+        
+        searchDropdown = document.createElement('div');
+        searchDropdown.className = 'search-dropdown';
+        searchDropdown.style.cssText = `
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            margin-top: 8px;
+            min-width: 350px;
+        `;
+        
+        const searchContainer = document.querySelector('.admin-header .search-container');
+        if (searchContainer) {
+            searchContainer.style.position = 'relative';
+            searchContainer.appendChild(searchDropdown);
+        }
+        
+        return searchDropdown;
+    }
+    
+    async function performSearch(query) {
+        if (!query || query.length < 2) {
+            hideSearchDropdown();
+            return;
+        }
+        
+        const dropdown = createSearchDropdown();
+        dropdown.innerHTML = '<div style="padding: 16px; text-align: center; color: #64748b;"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
+        dropdown.style.display = 'block';
+        
+        try {
+            const token = localStorage.getItem('jwtToken') || '';
+            const apiBase = '<?php echo $apiPath; ?>';
+            
+            const res = await fetch(apiBase + '/api/v1/search?q=' + encodeURIComponent(query), {
+                headers: { 'Authorization': 'Bearer ' + token.trim() }
+            });
+            
+            if (!res.ok) {
+                throw new Error('Search failed');
+            }
+            
+            const data = await res.json();
+            const results = data.data || [];
+            
+            if (results.length === 0) {
+                dropdown.innerHTML = `
+                    <div style="padding: 24px; text-align: center; color: #64748b;">
+                        <i class="fas fa-search" style="font-size: 24px; margin-bottom: 8px; opacity: 0.5;"></i>
+                        <div>No results found for "${escapeHtmlSearch(query)}"</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div style="padding: 8px 0;">';
+            results.forEach(result => {
+                const typeColors = {
+                    'campaign': '#3b82f6',
+                    'event': '#22c55e',
+                    'content': '#8b5cf6',
+                    'survey': '#f59e0b'
+                };
+                const color = typeColors[result.type] || '#64748b';
+                
+                html += `
+                    <a href="${result.url}" class="search-result-item" style="
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 12px;
+                        padding: 12px 16px;
+                        text-decoration: none;
+                        color: inherit;
+                        transition: background 0.2s;
+                        cursor: pointer;
+                    " onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                        <div style="
+                            width: 36px;
+                            height: 36px;
+                            border-radius: 8px;
+                            background: ${color}15;
+                            color: ${color};
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            flex-shrink: 0;
+                        ">
+                            <i class="fas ${result.icon}"></i>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                ${escapeHtmlSearch(result.title)}
+                            </div>
+                            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
+                                ${escapeHtmlSearch(result.subtitle)}
+                            </div>
+                        </div>
+                        <span style="
+                            font-size: 10px;
+                            font-weight: 600;
+                            text-transform: uppercase;
+                            padding: 2px 6px;
+                            border-radius: 4px;
+                            background: ${color}15;
+                            color: ${color};
+                        ">${result.type}</span>
+                    </a>
+                `;
+            });
+            html += '</div>';
+            
+            dropdown.innerHTML = html;
+            
+        } catch (err) {
+            console.error('Search error:', err);
+            dropdown.innerHTML = `
+                <div style="padding: 24px; text-align: center; color: #dc2626;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 8px;"></i>
+                    <div>Search failed. Please try again.</div>
+                </div>
+            `;
+        }
+    }
+    
+    function hideSearchDropdown() {
+        if (searchDropdown) {
+            searchDropdown.style.display = 'none';
+        }
+    }
+    
+    // escapeHtml is defined later in the file
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', function(e) {
+            const query = e.target.value.trim();
+            
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            // Debounce search
+            searchTimeout = setTimeout(() => {
+                performSearch(query);
+            }, 300);
+        });
+        
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const query = searchInput.value.trim();
+                if (query) {
+                    performSearch(query);
+                }
+            }
+        });
+        
+        // Hide dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-container')) {
+                hideSearchDropdown();
+            }
+        });
+        
+        // Hide dropdown on escape
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hideSearchDropdown();
+                searchInput.blur();
+            }
+        });
+    }
+    
+    // Notification button interactions
+    const notificationBtns = document.querySelectorAll('.admin-header .notification-btn');
+    notificationBtns.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const ariaLabel = this.getAttribute('aria-label');
+            
+            if (ariaLabel === 'Notifications') {
+                const modal = document.getElementById('notificationModal');
+                const messageModal = document.getElementById('messageModal');
+                const messageContentModal = document.getElementById('messageContentModal');
+                const messageBtn = document.querySelector('.notification-btn[aria-label="Messages"]');
+                
+                // Remove active class from message button
+                if (messageBtn) messageBtn.classList.remove('active');
+                
+                // Close other modals first
+                if (messageModal) messageModal.classList.remove('show');
+                if (messageContentModal) messageContentModal.classList.remove('show');
+                
+                // Toggle notification modal and active state
+                if (modal.classList.contains('show')) {
+                    modal.classList.remove('show');
+                    this.classList.remove('active');
+                    document.body.style.overflow = '';
+                } else {
+                    modal.classList.add('show');
+                    this.classList.add('active');
+                    document.body.style.overflow = '';
+                    // Load notifications when opening
+                    loadNotifications();
+                }
+            } else if (ariaLabel === 'Messages') {
+                const modal = document.getElementById('messageModal');
+                const notificationModal = document.getElementById('notificationModal');
+                const messageContentModal = document.getElementById('messageContentModal');
+                const notificationBtn = document.querySelector('.notification-btn[aria-label="Notifications"]');
+                
+                // Remove active class from notification button
+                if (notificationBtn) notificationBtn.classList.remove('active');
+                
+                // Close other modals first
+                if (notificationModal) notificationModal.classList.remove('show');
+                if (messageContentModal) messageContentModal.classList.remove('show');
+                
+                // Toggle message modal and active state
+                if (modal.classList.contains('show')) {
+                    modal.classList.remove('show');
+                    this.classList.remove('active');
+                    document.body.style.overflow = '';
+                } else {
+                    modal.classList.add('show');
+                    this.classList.add('active');
+                    document.body.style.overflow = '';
+                    // Load messages when opening
+                    loadMessages();
+                }
+            }
+        });
+    });
+    
+    // Load message count on page load
+    loadMessageCount();
+    
+    // Refresh message count every 30 seconds
+    setInterval(loadMessageCount, 30000);
+    
+    // User profile dropdown functionality
+    const userProfileBtn = document.getElementById('userProfileBtn');
+    const userProfileDropdown = document.getElementById('userProfileDropdown');
+    
+    if (userProfileBtn && userProfileDropdown) {
+        userProfileBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Close all modals first (except message content modal)
+            const notificationModal = document.getElementById('notificationModal');
+            const messageModal = document.getElementById('messageModal');
+            const messageContentModal = document.getElementById('messageContentModal');
+            
+            if (notificationModal) notificationModal.classList.remove('show');
+            if (messageModal) messageModal.classList.remove('show');
+            // Don't close messageContentModal - let it stay open like Facebook chat
+            
+            // Remove active states from notification buttons
+            const notificationBtn = document.querySelector('.notification-btn[aria-label="Notifications"]');
+            const messageBtn = document.querySelector('.notification-btn[aria-label="Messages"]');
+            if (notificationBtn) notificationBtn.classList.remove('active');
+            if (messageBtn) messageBtn.classList.remove('active');
+            
+            // Toggle user profile dropdown and active state
+            const isOpen = userProfileDropdown.classList.contains('show');
+            userProfileDropdown.classList.toggle('show');
+            userProfileBtn.classList.toggle('active', !isOpen);
+        });
+    }
+    
+    // Close modals when clicking outside
+    document.addEventListener('click', function(e) {
+        const notificationModal = document.getElementById('notificationModal');
+        const messageModal = document.getElementById('messageModal');
+        const messageContentModal = document.getElementById('messageContentModal');
+        const userProfileDropdown = document.getElementById('userProfileDropdown');
+        const notificationBtn = document.querySelector('.notification-btn[aria-label="Notifications"]');
+        const messageBtn = document.querySelector('.notification-btn[aria-label="Messages"]');
+        
+        // Close notification modal when clicking outside
+        if (notificationModal && notificationModal.classList.contains('show')) {
+            if (!notificationModal.contains(e.target) && !e.target.closest('.notification-btn[aria-label="Notifications"]')) {
+                notificationModal.classList.remove('show');
+                if (notificationBtn) notificationBtn.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+        
+        // Close message modal when clicking outside
+        if (messageModal && messageModal.classList.contains('show')) {
+            if (!messageModal.contains(e.target) && !e.target.closest('.notification-btn[aria-label="Messages"]')) {
+                messageModal.classList.remove('show');
+                if (messageBtn) messageBtn.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+        
+        // Close user profile dropdown when clicking outside
+        if (userProfileDropdown && userProfileDropdown.classList.contains('show')) {
+            if (!userProfileDropdown.contains(e.target) && !e.target.closest('#userProfileBtn')) {
+                userProfileDropdown.classList.remove('show');
+                userProfileBtn.classList.remove('active');
+            }
+        }
+        
+        // Message content modal stays open when clicking outside (don't close it)
+    });
+    
+    // Close modals on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeAllModals();
+        }
+    });
+    
+    // Modal functions
+    function openModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('show');
+            // Don't hide body scroll for message content modal (Facebook style)
+            if (modalId !== 'messageContentModal') {
+                document.body.style.overflow = 'hidden';
+            }
+        }
+    }
+    
+    function closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+    }
+    
+    function closeAllModals() {
+        const modals = document.querySelectorAll('.notification-modal, .message-content-modal');
+        modals.forEach(modal => {
+            modal.classList.remove('show');
+        });
+        document.body.style.overflow = '';
+    }
+    
+    // Message item interactions
+    const messageItems = document.querySelectorAll('.message-item');
+    messageItems.forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const userName = this.querySelector('.message-title').textContent;
+            const userAvatar = this.querySelector('.message-avatar img').src;
+            const messageText = this.querySelector('.message-text').textContent;
+            const messageTime = this.querySelector('.message-time').textContent;
+            
+            // Remove active state from message button when opening chat
+            const messageBtn = document.querySelector('.notification-btn[aria-label="Messages"]');
+            if (messageBtn) messageBtn.classList.remove('active');
+            
+            // Close message dropdown modal
+            const messageModal = document.getElementById('messageModal');
+            if (messageModal) messageModal.classList.remove('show');
+            
+            // Open message content modal
+            openMessageContent(userName, userAvatar, messageText, messageTime);
+            
+            // Remove unread status
+            const statusDot = this.querySelector('.message-status.unread');
+            if (statusDot) {
+                statusDot.classList.remove('unread');
+            }
+        });
+    });
+    
+    // Message content functions
+    function openMessageContent(userName, userAvatar, lastMessage, messageTime) {
+        const modal = document.getElementById('messageContentModal');
+        const nameElement = document.getElementById('messageUserName');
+        const avatarElement = document.getElementById('messageUserAvatar');
+        const contentElement = document.getElementById('messageContent');
+        const statusElement = document.getElementById('messageUserStatus');
+        
+        // Set user info
+        nameElement.textContent = userName;
+        avatarElement.src = userAvatar;
+        avatarElement.alt = userName;
+        statusElement.textContent = 'Active now';
+        
+        // Create conversation HTML
+        contentElement.innerHTML = `
+            <div class="chat-message received">
+                <div class="message-bubble">${lastMessage}</div>
+                <div class="message-time">${messageTime}</div>
+            </div>
+            <div class="chat-message sent">
+                <div class="message-bubble">Thanks for reaching out! I'll get back to you soon.</div>
+                <div class="message-time">Just now</div>
+            </div>
+        `;
+        
+        // Close message modal and open content modal
+        closeModal('messageModal');
+        modal.classList.add('show');
+        // Don't hide body scroll for Facebook-style chat
+        document.body.style.overflow = '';
+    }
+    
+    // Send message functionality
+    const sendBtn = document.querySelector('.send-message-btn');
+    const messageInput = document.getElementById('messageReplyInput');
+    
+    if (sendBtn && messageInput) {
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    }
+    
+    function sendMessage() {
+        const message = messageInput.value.trim();
+        if (message) {
+            const contentElement = document.getElementById('messageContent');
+            const newMessage = document.createElement('div');
+            newMessage.className = 'chat-message sent';
+            newMessage.innerHTML = `
+                <div class="message-bubble">${message}</div>
+                <div class="message-time">Just now</div>
+            `;
+            contentElement.appendChild(newMessage);
+            messageInput.value = '';
+            
+            // Scroll to bottom
+            contentElement.scrollTop = contentElement.scrollHeight;
+        }
+    }
+    
+    // Make functions globally accessible
+    window.openModal = openModal;
+    window.closeModal = closeModal;
+    window.closeAllModals = closeAllModals;
+    
+    // User profile interaction
+    const userProfile = document.querySelector('.admin-header .user-profile');
+    if (userProfile) {
+        userProfile.addEventListener('click', function() {
+            console.log('User profile clicked');
+        });
+    }
+    
+    // Notification functions
+    async function loadNotifications() {
+        const notificationBody = document.getElementById('notificationBody');
+        if (!notificationBody) return;
+        
+        try {
+            const token = localStorage.getItem('jwtToken') || '';
+            if (!token || token.trim() === '') {
+                console.warn('No JWT token found, skipping notification load');
+                return;
+            }
+            
+            const apiBase = '<?php echo $apiPath; ?>';
+            
+            const res = await fetch(apiBase + '/api/v1/notifications?limit=10', {
+                headers: { 'Authorization': 'Bearer ' + token.trim() }
+            });
+            
+            if (!res.ok) {
+                if (res.status === 401) {
+                    console.warn('Unauthorized access to notifications');
+                    return;
+                }
+                
+                // Try to get error message from response
+                let errorMsg = 'Failed to load notifications';
+                try {
+                    const errorData = await res.json();
+                    if (errorData.error) {
+                        errorMsg = errorData.error;
+                    }
+                } catch (e) {
+                    // Response might not be JSON
+                }
+                
+                console.error('Notification API error:', res.status, errorMsg);
+                throw new Error(errorMsg);
+            }
+            
+            const data = await res.json();
+            
+            // Check if response has error field (backend returned error but 200 status)
+            if (data.error) {
+                console.error('Notification API returned error:', data.error);
+                throw new Error(data.error);
+            }
+            
+            const notifications = data.data || [];
+            
+            // Show empty state if no notifications
+            if (notifications.length === 0) {
+                notificationBody.innerHTML = `
+                    <div style="text-align: center; padding: 24px; color: #64748b;">
+                        <i class="fas fa-bell-slash" style="font-size: 32px; margin-bottom: 8px; opacity: 0.5;"></i>
+                        <div style="font-weight: 500; margin-bottom: 4px;">No notifications yet</div>
+                        <div style="font-size: 12px; opacity: 0.7;">You'll see alerts and updates here</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            notifications.forEach(notif => {
+                const iconClass = getNotificationIcon(notif.type, notif.icon);
+                const iconBgClass = notif.type || 'system';
+                const timeAgo = formatTimeAgo(notif.created_at);
+                const linkAttr = notif.link_url ? `onclick="window.location.href='${notif.link_url}'"` : '';
+                const unreadClass = notif.is_read ? '' : 'unread-notification';
+                
+                html += `
+                    <div class="notification-item ${unreadClass}" ${linkAttr} data-id="${notif.id}">
+                        <div class="notification-icon ${iconBgClass}">
+                            <i class="${iconClass}"></i>
+                        </div>
+                        <div class="notification-details">
+                            <div class="notification-title">${escapeHtml(notif.title)}</div>
+                            <div class="notification-text">${escapeHtml(notif.message)}</div>
+                            <div class="notification-time">${timeAgo}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            notificationBody.innerHTML = html;
+            
+            // Add click handlers to mark as read
+            notificationBody.querySelectorAll('.notification-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const notifId = this.getAttribute('data-id');
+                    if (notifId && !this.classList.contains('read')) {
+                        markNotificationRead(notifId);
+                        this.classList.remove('unread-notification');
+                        this.classList.add('read');
+                    }
+                });
+            });
+            
+        } catch (err) {
+            console.error('Error loading notifications:', err);
+            console.error('Error details:', {
+                message: err.message,
+                stack: err.stack
+            });
+            notificationBody.innerHTML = `
+                <div style="text-align: center; padding: 24px; color: #dc2626;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 8px;"></i>
+                    <div style="font-weight: 500; margin-bottom: 4px;">Unable to load notifications</div>
+                    <div style="font-size: 12px; opacity: 0.8;">Please try again or contact support if the problem persists</div>
+                </div>
+            `;
+        }
+    }
+    
+    async function loadNotificationCount() {
+        try {
+            const token = localStorage.getItem('jwtToken') || '';
+            if (!token || token.trim() === '') return;
+            
+            const apiBase = '<?php echo $apiPath; ?>';
+            const res = await fetch(apiBase + '/api/v1/notifications?limit=1', {
+                headers: { 'Authorization': 'Bearer ' + token.trim() }
+            });
+            
+            if (!res.ok) {
+                if (res.status === 401) {
+                    // Token expired or invalid - silently fail to avoid console spam
+                    return;
+                }
+                return;
+            }
+            
+            const data = await res.json();
+            const unreadCount = data.unread_count || 0;
+            
+            // Update badge
+            const badge = document.getElementById('notificationBadge');
+            if (badge) {
+                if (unreadCount > 0) {
+                    badge.textContent = unreadCount > 99 ? '99+' : unreadCount.toString();
+                    badge.style.display = 'block';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        } catch (err) {
+            console.error('Error loading notification count:', err);
+        }
+    }
+    
+    async function markNotificationRead(notifId) {
+        try {
+            const token = localStorage.getItem('jwtToken') || '';
+            if (!token || token.trim() === '') return;
+            
+            const apiBase = '<?php echo $apiPath; ?>';
+            
+            await fetch(apiBase + '/api/v1/notifications/' + notifId + '/read', {
+                method: 'PUT',
+                headers: { 'Authorization': 'Bearer ' + token.trim() }
+            });
+            
+            // Update count
+            loadNotificationCount();
+        } catch (err) {
+            console.error('Error marking notification as read:', err);
+        }
+    }
+    
+    async function markAllNotificationsRead() {
+        try {
+            const token = localStorage.getItem('jwtToken') || '';
+            if (!token || token.trim() === '') return;
+            
+            const apiBase = '<?php echo $apiPath; ?>';
+            
+            await fetch(apiBase + '/api/v1/notifications/read-all', {
+                method: 'PUT',
+                headers: { 'Authorization': 'Bearer ' + token.trim() }
+            });
+            
+            // Reload notifications
+            loadNotifications();
+            loadNotificationCount();
+        } catch (err) {
+            console.error('Error marking all as read:', err);
+        }
+    }
+    
+    function getNotificationIcon(type, customIcon) {
+        if (customIcon) return customIcon;
+        
+        const icons = {
+            'campaign': 'fas fa-bullhorn',
+            'event': 'fas fa-calendar',
+            'content': 'fas fa-file-alt',
+            'system': 'fas fa-info-circle',
+            'alert': 'fas fa-exclamation-triangle',
+            'reminder': 'fas fa-clock',
+        };
+        
+        return icons[type] || 'fas fa-bell';
+    }
+    
+    function formatTimeAgo(dateString) {
+        if (!dateString) return 'Just now';
+        
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return diffMins + ' minute' + (diffMins > 1 ? 's' : '') + ' ago';
+        if (diffHours < 24) return diffHours + ' hour' + (diffHours > 1 ? 's' : '') + ' ago';
+        if (diffDays < 7) return diffDays + ' day' + (diffDays > 1 ? 's' : '') + ' ago';
+        
+        return date.toLocaleDateString();
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    function loadAllNotifications() {
+        // Could navigate to a full notifications page
+        console.log('View all notifications');
+    }
+    
+    // Message functions
+    async function loadMessages() {
+        const messageBody = document.getElementById('messageBody');
+        if (!messageBody) return;
+        
+        try {
+            const token = localStorage.getItem('jwtToken') || '';
+            if (!token || token.trim() === '') {
+                console.warn('No JWT token found, skipping message load');
+                return;
+            }
+            
+            const apiBase = '<?php echo $apiPath; ?>';
+            
+            const res = await fetch(apiBase + '/api/v1/messages/conversations?limit=10', {
+                headers: { 'Authorization': 'Bearer ' + token.trim() }
+            });
+            
+            if (!res.ok) {
+                if (res.status === 401) {
+                    console.warn('Unauthorized access to messages');
+                    return;
+                }
+                
+                // Try to get error message from response
+                let errorMsg = 'Failed to load messages';
+                try {
+                    const errorData = await res.json();
+                    if (errorData.error) {
+                        errorMsg = errorData.error;
+                    }
+                } catch (e) {
+                    // Response might not be JSON
+                }
+                
+                console.error('Message API error:', res.status, errorMsg);
+                throw new Error(errorMsg);
+            }
+            
+            const data = await res.json();
+            
+            // Check if response has error field (backend returned error but 200 status)
+            if (data.error) {
+                console.error('Message API returned error:', data.error);
+                throw new Error(data.error);
+            }
+            
+            const conversations = data.data || [];
+            
+            // Show empty state if no conversations
+            if (conversations.length === 0) {
+                messageBody.innerHTML = `
+                    <div style="text-align: center; padding: 24px; color: #64748b;">
+                        <i class="fas fa-envelope-open" style="font-size: 32px; margin-bottom: 8px; opacity: 0.5;"></i>
+                        <div style="font-weight: 500; margin-bottom: 4px;">No messages yet</div>
+                        <div style="font-size: 12px; opacity: 0.7;">Start a conversation with a team member</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            conversations.forEach(conv => {
+                const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(conv.other_user_name || 'User')}&background=4c8a89&color=fff&size=64`;
+                const timeAgo = formatTimeAgo(conv.last_message_at);
+                const unreadClass = conv.unread_count > 0 ? 'unread-message' : '';
+                const unreadDot = conv.unread_count > 0 ? '<div class="message-status unread"></div>' : '<div class="message-status"></div>';
+                const lastMessage = conv.last_message ? escapeHtml(conv.last_message.substring(0, 50)) : 'No messages';
+                const otherUserName = escapeHtml(conv.other_user_name || 'Unknown User');
+                
+                html += `
+                    <div class="message-item ${unreadClass}" onclick="openConversation(${conv.conversation_id}, ${conv.other_user_id}, '${otherUserName}')" data-conv-id="${conv.conversation_id}">
+                        <div class="message-avatar">
+                            <img src="${avatarUrl}" alt="${otherUserName}">
+                        </div>
+                        <div class="message-details">
+                            <div class="message-title">${otherUserName}</div>
+                            <div class="message-text">${lastMessage}</div>
+                            <div class="message-time">${timeAgo}</div>
+                        </div>
+                        ${unreadDot}
+                    </div>
+                `;
+            });
+            
+            messageBody.innerHTML = html;
+            
+        } catch (err) {
+            console.error('Error loading messages:', err);
+            console.error('Error details:', {
+                message: err.message,
+                stack: err.stack
+            });
+            messageBody.innerHTML = `
+                <div style="text-align: center; padding: 24px; color: #dc2626;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 8px;"></i>
+                    <div style="font-weight: 500; margin-bottom: 4px;">Unable to load messages</div>
+                    <div style="font-size: 12px; opacity: 0.8;">Please try again or contact support if the problem persists</div>
+                </div>
+            `;
+        }
+    }
+    
+    async function loadMessageCount() {
+        try {
+            const token = localStorage.getItem('jwtToken') || '';
+            if (!token || token.trim() === '') return;
+            
+            const apiBase = '<?php echo $apiPath; ?>';
+            const res = await fetch(apiBase + '/api/v1/messages/conversations?limit=1', {
+                headers: { 'Authorization': 'Bearer ' + token.trim() }
+            });
+            
+            if (!res.ok) {
+                if (res.status === 401) {
+                    // Token expired or invalid - silently fail to avoid console spam
+                    return;
+                }
+                return;
+            }
+            
+            const data = await res.json();
+            const unreadCount = data.unread_count || 0;
+            
+            // Update badge
+            const badge = document.getElementById('messageBadge');
+            if (badge) {
+                if (unreadCount > 0) {
+                    badge.textContent = unreadCount > 99 ? '99+' : unreadCount.toString();
+                    badge.style.display = 'block';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        } catch (err) {
+            console.error('Error loading message count:', err);
+        }
+    }
+    
+    function openConversation(conversationId, userId, userName) {
+        // Open message content modal with conversation
+        const messageContentModal = document.getElementById('messageContentModal');
+        const messageUserName = document.getElementById('messageUserName');
+        const messageUserAvatar = document.getElementById('messageUserAvatar');
+        
+        if (messageContentModal && messageUserName && messageUserAvatar) {
+            messageUserName.textContent = userName;
+            messageUserAvatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4c8a89&color=fff&size=64`;
+            messageUserAvatar.alt = userName;
+            messageContentModal.setAttribute('data-conversation-id', conversationId);
+            messageContentModal.setAttribute('data-user-id', userId);
+            messageContentModal.classList.add('show');
+            
+            // Load conversation messages
+            loadConversationMessages(conversationId);
+        }
+    }
+    
+    async function loadConversationMessages(conversationId) {
+        const messageContent = document.getElementById('messageContent');
+        if (!messageContent) return;
+        
+        try {
+            const token = localStorage.getItem('jwtToken') || '';
+            if (!token || token.trim() === '') return;
+            
+            const apiBase = '<?php echo $apiPath; ?>';
+            
+            const res = await fetch(apiBase + '/api/v1/messages/conversations/' + conversationId, {
+                headers: { 'Authorization': 'Bearer ' + token.trim() }
+            });
+            
+            if (!res.ok) {
+                throw new Error('Failed to load conversation');
+            }
+            
+            const data = await res.json();
+            const messages = data.data || [];
+            
+            let html = '';
+            messages.forEach(msg => {
+                const isSent = msg.sender_id === parseInt(localStorage.getItem('userId') || '0');
+                const alignClass = isSent ? 'message-sent' : 'message-received';
+                const timeAgo = formatTimeAgo(msg.created_at);
+                
+                html += `
+                    <div class="message-bubble ${alignClass}">
+                        <div class="message-bubble-text">${escapeHtml(msg.message_text)}</div>
+                        <div class="message-bubble-time">${timeAgo}</div>
+                    </div>
+                `;
+            });
+            
+            messageContent.innerHTML = html;
+            messageContent.scrollTop = messageContent.scrollHeight;
+            
+            // Reload message list to update unread status
+            loadMessages();
+            loadMessageCount();
+        } catch (err) {
+            console.error('Error loading conversation:', err);
+            messageContent.innerHTML = '<div style="padding: 16px; color: #dc2626;">Error loading conversation</div>';
+        }
+    }
+    
+    function loadAllMessages() {
+        // Could navigate to a full messages page
+        console.log('View all messages');
+    }
+    
+    // Make functions globally accessible
+    window.loadNotifications = loadNotifications;
+    window.markAllNotificationsRead = markAllNotificationsRead;
+    window.loadMessages = loadMessages;
+    window.loadMessageCount = loadMessageCount;
+    window.openConversation = openConversation;
+    
+    // Screen Lock Functionality - Global
+    initGlobalScreenLock();
+});
+
+// Update global lock screen theme based on current theme
+function updateGlobalLockScreenTheme() {
+    const overlay = document.getElementById('globalScreenLockOverlay');
+    const logo = document.querySelector('.global-lock-screen-logo');
+    const theme = localStorage.getItem('theme') || 'light';
+    
+    if (theme === 'dark') {
+        overlay.style.background = 'linear-gradient(135deg, #0a2e2c 0%, #134540 50%, #0d1f1e 100%)';
+        if (logo) logo.style.filter = 'brightness(1.2) drop-shadow(0 2px 8px rgba(76, 138, 137, 0.3))';
+    } else {
+        overlay.style.background = 'linear-gradient(135deg, #1a4d4a 0%, #2d5f5d 50%, #1e3d3b 100%)';
+        if (logo) logo.style.filter = 'brightness(1.1) drop-shadow(0 2px 8px rgba(0,0,0,0.2))';
+    }
+}
+
+function initGlobalScreenLock() {
+    // Check if screen was locked before refresh
+    const wasLocked = sessionStorage.getItem('screen_locked') === 'true';
+    const screenLockEnabled = localStorage.getItem('screen_lock_enabled') === 'true';
+    if (wasLocked && screenLockEnabled) {
+        // Re-activate lock screen after page load
+        setTimeout(() => {
+            activateGlobalScreenLock();
+        }, 100);
+    }
+    
+    // Add Ctrl+L keyboard listener globally
+    document.addEventListener('keydown', function(e) {
+        // Check if Ctrl+L is pressed
+        if (e.ctrlKey && e.key === 'l') {
+            e.preventDefault(); // Prevent browser's default behavior
+            
+            // Check if screen lock is enabled
+            const isEnabled = localStorage.getItem('screen_lock_enabled') === 'true';
+            if (isEnabled) {
+                activateGlobalScreenLock();
+            }
+        }
+    });
+    
+    // Update time on lock screen every second
+    setInterval(updateGlobalLockScreenTime, 1000);
+}
+
+function activateGlobalScreenLock() {
+    // Get user info from localStorage
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const fullName = currentUser.full_name || currentUser.name || 'User';
+    
+    // Set user name
+    const nameEl = document.getElementById('globalLockScreenName');
+    if (nameEl) nameEl.textContent = fullName;
+    
+    // Set avatar (first letter of name)
+    const firstLetter = fullName.charAt(0).toUpperCase();
+    const avatarEl = document.getElementById('globalLockScreenAvatar');
+    if (avatarEl) avatarEl.textContent = firstLetter;
+    
+    // Update time
+    updateGlobalLockScreenTime();
+    
+    // Clear password field and error
+    const passwordEl = document.getElementById('globalUnlockPassword');
+    const errorEl = document.getElementById('globalUnlockError');
+    if (passwordEl) passwordEl.value = '';
+    if (errorEl) errorEl.style.display = 'none';
+    
+    // Update theme-aware background
+    updateGlobalLockScreenTheme();
+    
+    // Show overlay
+    const overlay = document.getElementById('globalScreenLockOverlay');
+    if (overlay) {
+        overlay.style.display = 'flex';
+        
+        // Set lock state in sessionStorage for persistence
+        sessionStorage.setItem('screen_locked', 'true');
+        
+        // Focus on password input
+        setTimeout(() => {
+            if (passwordEl) passwordEl.focus();
+        }, 100);
+    }
+}
+
+async function unlockGlobalScreen(event) {
+    event.preventDefault();
+    
+    const passwordEl = document.getElementById('globalUnlockPassword');
+    const errorEl = document.getElementById('globalUnlockError');
+    const overlayEl = document.getElementById('globalScreenLockOverlay');
+    const unlockBtn = document.querySelector('#globalUnlockForm button[type="submit"]');
+    
+    if (!passwordEl || !errorEl || !overlayEl) return false;
+    
+    const password = passwordEl.value.trim();
+    
+    if (!password) {
+        errorEl.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter your password.';
+        errorEl.style.display = 'block';
+        passwordEl.focus();
+        return false;
+    }
+    
+    // Get current user email from localStorage
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const email = currentUser.email;
+    
+    if (!email) {
+        errorEl.innerHTML = '<i class="fas fa-exclamation-circle"></i> Session expired. Please log in again.';
+        errorEl.style.display = 'block';
+        return false;
+    }
+    
+    // Show loading state
+    if (unlockBtn) {
+        unlockBtn.disabled = true;
+        unlockBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+    }
+    
+    try {
+        // Verify password via API
+        const apiBase = '<?php echo $apiPath; ?>';
+        const res = await fetch(apiBase + '/api/v1/auth/verify-password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + (localStorage.getItem('jwtToken') || '')
+            },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok && data.success) {
+            // Correct password - unlock
+            overlayEl.style.display = 'none';
+            passwordEl.value = '';
+            errorEl.style.display = 'none';
+            // Clear lock state from sessionStorage
+            sessionStorage.removeItem('screen_locked');
+        } else {
+            // Incorrect password - show error
+            errorEl.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + (data.error || 'Incorrect password. Try again.');
+            errorEl.style.display = 'block';
+            passwordEl.value = '';
+            passwordEl.focus();
+            
+            // Shake animation
+            const form = document.getElementById('globalUnlockForm');
+            if (form) {
+                form.style.animation = 'shake 0.5s';
+                setTimeout(() => {
+                    form.style.animation = '';
+                }, 500);
+            }
+        }
+    } catch (err) {
+        errorEl.innerHTML = '<i class="fas fa-exclamation-circle"></i> Network error. Please try again.';
+        errorEl.style.display = 'block';
+        passwordEl.value = '';
+        passwordEl.focus();
+    } finally {
+        // Reset button state
+        if (unlockBtn) {
+            unlockBtn.disabled = false;
+            unlockBtn.innerHTML = '<i class="fas fa-unlock"></i> Unlock';
+        }
+    }
+    
+    return false;
+}
+
+// Logout from lock screen
+function logoutFromLockScreen() {
+    // Clear all auth data
+    localStorage.removeItem('jwtToken');
+    localStorage.removeItem('currentUser');
+    sessionStorage.removeItem('screen_locked');
+    
+    // Clear role cookie
+    document.cookie = 'user_role_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    
+    // Redirect to login page
+    window.location.href = '<?php echo $basePath; ?>/login.php';
+}
+
+function updateGlobalLockScreenTime() {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const timeEl = document.getElementById('globalLockScreenTime');
+    if (timeEl) {
+        timeEl.textContent = hours + ':' + minutes;
+    }
+}
+</script>
+
+<!-- Global Screen Lock Overlay -->
+<div id="globalScreenLockOverlay" class="global-screen-lock-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; z-index: 99999;">
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 20px; box-sizing: border-box;">
+        <!-- System Logo -->
+        <div style="margin-bottom: 8px;">
+            <img src="<?php echo htmlspecialchars($imgPath . '/logo.svg'); ?>" alt="System Logo" class="global-lock-screen-logo" style="width: 100px; height: 100px;">
+        </div>
+        
+        <!-- User Profile -->
+        <div style="background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); border-radius: 20px; padding: 40px; max-width: 400px; width: 100%; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); text-align: center; color: white;">
+            <!-- Profile Picture -->
+            <div style="margin-bottom: 24px;">
+                <div id="globalLockScreenAvatar" style="width: 100px; height: 100px; border-radius: 50%; background: white; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 700; color: #4c8a89; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);"></div>
+            </div>
+            
+            <!-- Full Name -->
+            <h2 id="globalLockScreenName" style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700;"></h2>
+            <p style="margin: 0 0 32px 0; opacity: 0.9; font-size: 14px;">Screen is locked</p>
+            
+            <!-- Password Input -->
+            <form id="globalUnlockForm" onsubmit="return unlockGlobalScreen(event);">
+                <div style="position: relative; margin-bottom: 16px;">
+                    <input 
+                        type="password" 
+                        id="globalUnlockPassword" 
+                        placeholder="Enter password to unlock" 
+                        style="width: 100%; padding: 16px 48px 16px 16px; border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 12px; font-size: 16px; background: rgba(255, 255, 255, 0.2); color: white; outline: none; box-sizing: border-box;"
+                        autocomplete="off"
+                    >
+                    <i class="fas fa-lock" style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); opacity: 0.7;"></i>
+                </div>
+                <div id="globalUnlockError" style="display: none; background: rgba(220, 38, 38, 0.2); border: 2px solid rgba(220, 38, 38, 0.5); border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 14px;">
+                    <i class="fas fa-exclamation-circle"></i> Incorrect password. Try again.
+                </div>
+                <button type="submit" style="width: 100%; padding: 16px; background: white; color: #4c8a89; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
+                    <i class="fas fa-unlock"></i> Unlock
+                </button>
+            </form>
+            
+            <!-- Logout Option -->
+            <button type="button" onclick="logoutFromLockScreen()" style="width: 100%; margin-top: 12px; padding: 12px; background: transparent; color: rgba(255, 255, 255, 0.8); border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 12px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.3s;">
+                <i class="fas fa-sign-out-alt"></i> Logout Instead
+            </button>
+            
+            <!-- Time Display -->
+            <div id="globalLockScreenTime" style="margin-top: 24px; font-size: 48px; font-weight: 300; opacity: 0.9;"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+    20%, 40%, 60%, 80% { transform: translateX(10px); }
+}
+
+#globalUnlockPassword::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+#globalUnlockPassword:focus {
+    border-color: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.25);
+}
+
+#globalScreenLockOverlay button[type="submit"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+#globalScreenLockOverlay button[type="submit"]:active {
+    transform: translateY(0);
+}
+</style>

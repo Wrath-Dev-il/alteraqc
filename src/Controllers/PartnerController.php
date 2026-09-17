@@ -1,0 +1,505 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Middleware\RoleMiddleware;
+use PDO;
+use RuntimeException;
+
+class PartnerController
+{
+    private static bool $migrationsRun = false;
+    
+    public function __construct(
+        private PDO $pdo,
+        private string $jwtSecret,
+        private string $jwtIssuer,
+        private string $jwtAudience,
+        private int $jwtExpirySeconds
+    ) {
+        // Auto-migration: Disabled to prevent 502 Bad Gateway errors from slow INFORMATION_SCHEMA queries
+        // These migrations should be run via a dedicated migration script, not in constructor
+        // $this->ensureStatusColumn();
+    }
+    
+    private function ensureStatusColumn(): void
+    {
+        if (self::$migrationsRun) return;
+        self::$migrationsRun = true;
+        
+        try {
+            $checkStmt = $this->pdo->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'campaign_department_partners' 
+                AND COLUMN_NAME = 'status'");
+            $exists = $checkStmt->fetchColumn();
+            
+            if (!$exists) {
+                error_log('PartnerController: Adding status column to partners table');
+                $this->pdo->exec("ALTER TABLE `campaign_department_partners` 
+                    ADD COLUMN `status` ENUM('active','archived') NOT NULL DEFAULT 'active' AFTER `contact_phone`");
+            }
+        } catch (\Throwable $e) {
+            error_log('PartnerController::ensureStatusColumn error: ' . $e->getMessage());
+        }
+    }
+
+    public function index(?array $user, array $params = []): array
+    {
+        // RBAC: All authenticated users can view partners (read access)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        // Filter by status - exclude archived by default unless specifically requested
+        $status = $_GET['status'] ?? null;
+        $where = [];
+        $bind = [];
+        
+        if ($status === 'archived') {
+            $where[] = 'status = :status';
+            $bind['status'] = 'archived';
+        } elseif ($status === 'active') {
+            $where[] = 'status = :status';
+            $bind['status'] = 'active';
+        } else {
+            // Default: exclude archived
+            $where[] = "(status IS NULL OR status != 'archived')";
+        }
+        
+        // AI recommendation suggestions are planning data, not master partner records.
+        // Hide legacy placeholder rows created by older AI acceptance code so they do
+        // not appear as blank "AI Recommended - Other" entries in All Partners.
+        $where[] = "NOT (name LIKE 'AI Recommended - %' AND contact_person IS NULL AND contact_email IS NULL AND contact_phone IS NULL)";
+
+        $whereClause = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+        
+        $sql = "SELECT id, name, organization_type, contact_person, contact_email, contact_phone, 
+                       COALESCE(status, 'active') as status, created_at 
+                FROM `campaign_department_partners` 
+                {$whereClause}
+                ORDER BY created_at DESC";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($bind);
+        return ['data' => $stmt->fetchAll()];
+    }
+
+    public function store(?array $user, array $params = []): array
+    {
+        // RBAC: Only authorized LGU roles can create partners (viewer cannot)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        try {
+            $userRole = RoleMiddleware::getUserRole($user, $this->pdo);
+            $userRoleName = $userRole ? strtolower($userRole) : '';
+            
+            // Viewer is read-only
+            if ($userRoleName === 'viewer') {
+                http_response_code(403);
+                return ['error' => 'Viewer role is read-only. You cannot create partners.'];
+            }
+            
+            // Allowed roles: admin, staff, secretary, kagawad, captain
+            $allowedRoles = ['admin', 'staff', 'secretary', 'kagawad', 'captain', 'barangay administrator', 'barangay staff', 'system_admin', 'barangay_admin'];
+            if (!$userRole || !in_array($userRoleName, $allowedRoles, true)) {
+                http_response_code(403);
+                return ['error' => 'Insufficient permissions. Only authorized LGU personnel can create partners.'];
+            }
+        } catch (\Exception $e) {
+            http_response_code(403);
+            return ['error' => 'Access denied: ' . $e->getMessage()];
+        }
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $name = trim($input['name'] ?? '');
+        $contactPerson = $input['contact_person'] ?? null;
+        $contactEmail = $input['contact_email'] ?? null;
+        $contactPhone = $input['contact_phone'] ?? null;
+
+        if (!$name) {
+            http_response_code(422);
+            return ['error' => 'Name is required'];
+        }
+
+        $organizationType = $input['organization_type'] ?? null;
+        
+        $stmt = $this->pdo->prepare('INSERT INTO `campaign_department_partners` (name, organization_type, contact_person, contact_email, contact_phone) VALUES (:name, :org_type, :cp, :ce, :cph)');
+        $stmt->execute([
+            'name' => $name,
+            'org_type' => $organizationType ?: null,
+            'cp' => $contactPerson ?: null,
+            'ce' => $contactEmail ?: null,
+            'cph' => $contactPhone ?: null,
+        ]);
+
+        return ['id' => (int) $this->pdo->lastInsertId(), 'message' => 'Partner created'];
+    }
+
+    public function engage(?array $user, array $params = []): array
+    {
+        // RBAC: Only authorized LGU roles can engage partners (viewer cannot)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        try {
+            $userRole = RoleMiddleware::getUserRole($user, $this->pdo);
+            $userRoleName = $userRole ? strtolower($userRole) : '';
+            
+            // Viewer is read-only
+            if ($userRoleName === 'viewer') {
+                http_response_code(403);
+                return ['error' => 'Viewer role is read-only. You cannot engage partners.'];
+            }
+            
+            // Allowed roles: admin, staff, secretary, kagawad, captain, partner
+            $allowedRoles = ['admin', 'staff', 'secretary', 'kagawad', 'captain', 'partner', 'barangay administrator', 'barangay staff', 'system_admin', 'barangay_admin'];
+            if (!$userRole || !in_array($userRoleName, $allowedRoles, true)) {
+                http_response_code(403);
+                return ['error' => 'Insufficient permissions. Only authorized LGU personnel can engage partners.'];
+            }
+        } catch (\Exception $e) {
+            http_response_code(403);
+            return ['error' => 'Access denied: ' . $e->getMessage()];
+        }
+        
+        $partnerId = (int) ($params['id'] ?? 0);
+        $partner = $this->findPartner($partnerId);
+
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $campaignId = isset($input['campaign_id']) ? (int) $input['campaign_id'] : 0;
+        $engagementType = $input['engagement_type'] ?? 'collaboration';
+        $notes = $input['notes'] ?? null;
+        $webhookUrl = $input['webhook_url'] ?? null;
+        $eventId = isset($input['event_id']) ? (int) $input['event_id'] : null;
+
+        $this->assertCampaign($campaignId);
+        if ($eventId) {
+            $this->assertEvent($eventId);
+        }
+
+        $stmt = $this->pdo->prepare('INSERT INTO `campaign_department_partner_engagements` (partner_id, campaign_id, event_id, engagement_type, notes) VALUES (:pid, :cid, :eid, :etype, :notes)');
+        $stmt->execute([
+            'pid' => $partnerId,
+            'cid' => $campaignId,
+            'eid' => $eventId ?: null,
+            'etype' => $engagementType,
+            'notes' => $notes ?: null,
+        ]);
+
+        $engagementId = (int) $this->pdo->lastInsertId();
+
+        $deliveryStatus = 'skipped';
+        if ($webhookUrl) {
+            $payload = [
+                'partner_id' => $partnerId,
+                'campaign_id' => $campaignId,
+                'event_id' => $eventId,
+                'engagement_type' => $engagementType,
+                'notes' => $notes,
+            ];
+            $deliveryStatus = $this->sendWebhook($webhookUrl, $payload) ? 'success' : 'failed';
+            $this->logIntegration('partner_invite', $payload, $deliveryStatus);
+        }
+
+        return [
+            'message' => 'Engagement created',
+            'engagement_id' => $engagementId,
+            'webhook_status' => $deliveryStatus,
+        ];
+    }
+
+    public function assignments(?array $user, array $params = []): array
+    {
+        $partnerId = (int) ($params['id'] ?? 0);
+        $this->findPartner($partnerId);
+
+        $stmt = $this->pdo->prepare('
+            SELECT pe.id as engagement_id, c.id as campaign_id, c.title as campaign_title, c.status,
+                   pe.engagement_type, pe.notes, pe.created_at as engaged_at,
+                   e.id as event_id, e.name as event_name, e.event_date as starts_at
+            FROM `campaign_department_partner_engagements` pe
+            INNER JOIN `campaign_department_campaigns` c ON c.id = pe.campaign_id
+            LEFT JOIN `campaign_department_events` e ON e.id = pe.event_id
+            WHERE pe.partner_id = :pid
+            ORDER BY pe.created_at DESC
+        ');
+        $stmt->execute(['pid' => $partnerId]);
+        $rows = $stmt->fetchAll();
+
+        return ['data' => $rows];
+    }
+
+    public function show(?array $user, array $params = []): array
+    {
+        // RBAC: All authenticated users can view partners (read access)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        $id = (int) ($params['id'] ?? 0);
+        $partner = $this->findPartner($id);
+        
+        return ['data' => $partner];
+    }
+
+    public function update(?array $user, array $params = []): array
+    {
+        // RBAC: Only authorized LGU roles can update partners (viewer cannot)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        try {
+            $userRole = RoleMiddleware::getUserRole($user, $this->pdo);
+            $userRoleName = $userRole ? strtolower($userRole) : '';
+            
+            // Viewer is read-only
+            if ($userRoleName === 'viewer') {
+                http_response_code(403);
+                return ['error' => 'Viewer role is read-only. You cannot update partners.'];
+            }
+            
+            // Allowed roles: admin, staff, secretary, kagawad, captain
+            $allowedRoles = ['admin', 'staff', 'secretary', 'kagawad', 'captain', 'barangay administrator', 'barangay staff', 'system_admin', 'barangay_admin'];
+            if (!$userRole || !in_array($userRoleName, $allowedRoles, true)) {
+                http_response_code(403);
+                return ['error' => 'Insufficient permissions. Only authorized LGU personnel can update partners.'];
+            }
+        } catch (\Exception $e) {
+            http_response_code(403);
+            return ['error' => 'Access denied: ' . $e->getMessage()];
+        }
+        
+        $id = (int) ($params['id'] ?? 0);
+        $partner = $this->findPartner($id);
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $name = trim($input['name'] ?? $partner['name']);
+        $organizationType = $input['organization_type'] ?? $partner['organization_type'] ?? null;
+        $contactPerson = isset($input['contact_person']) ? trim($input['contact_person']) : $partner['contact_person'];
+        $contactEmail = isset($input['contact_email']) ? trim($input['contact_email']) : $partner['contact_email'];
+        $contactPhone = isset($input['contact_phone']) ? trim($input['contact_phone']) : $partner['contact_phone'];
+        
+        if (!$name) {
+            http_response_code(422);
+            return ['error' => 'Name is required'];
+        }
+        
+        $stmt = $this->pdo->prepare('
+            UPDATE `campaign_department_partners` SET
+                name = :name,
+                organization_type = :org_type,
+                contact_person = :cp,
+                contact_email = :ce,
+                contact_phone = :cph,
+                updated_at = NOW()
+            WHERE id = :id
+        ');
+        $stmt->execute([
+            'id' => $id,
+            'name' => $name,
+            'org_type' => $organizationType ?: null,
+            'cp' => $contactPerson ?: null,
+            'ce' => $contactEmail ?: null,
+            'cph' => $contactPhone ?: null,
+        ]);
+        
+        return ['id' => $id, 'message' => 'Partner updated'];
+    }
+
+    public function destroy(?array $user, array $params = []): array
+    {
+        // RBAC: Only authorized LGU roles can delete partners (viewer cannot)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        try {
+            $userRole = RoleMiddleware::getUserRole($user, $this->pdo);
+            $userRoleName = $userRole ? strtolower($userRole) : '';
+            
+            // Viewer is read-only - cannot delete anything
+            if ($userRoleName === 'viewer') {
+                http_response_code(403);
+                return ['error' => 'Viewer role is read-only. You cannot delete partners.'];
+            }
+            
+            // Only admin and captain can delete partners
+            $allowedRoles = ['admin', 'captain', 'barangay administrator', 'system_admin', 'barangay_admin'];
+            if (!$userRole || !in_array($userRoleName, $allowedRoles, true)) {
+                http_response_code(403);
+                return ['error' => 'Insufficient permissions. Only administrators and captains can delete partners.'];
+            }
+        } catch (\Exception $e) {
+            http_response_code(403);
+            return ['error' => 'Access denied: ' . $e->getMessage()];
+        }
+        
+        $id = (int) ($params['id'] ?? 0);
+        $partner = $this->findPartner($id);
+        
+        // Delete related records first (foreign key constraints)
+        $this->pdo->beginTransaction();
+        try {
+            // Delete partner engagements
+            $stmt = $this->pdo->prepare('DELETE FROM `campaign_department_partner_engagements` WHERE partner_id = :id');
+            $stmt->execute(['id' => $id]);
+            
+            // Delete the partner
+            $stmt = $this->pdo->prepare('DELETE FROM `campaign_department_partners` WHERE id = :id');
+            $stmt->execute(['id' => $id]);
+            
+            $this->pdo->commit();
+            
+            return ['message' => 'Partner deleted successfully'];
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            error_log('PartnerController::destroy - Error: ' . $e->getMessage());
+            http_response_code(500);
+            return ['error' => 'Failed to delete partner: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Archive a partner
+     */
+    public function archive(?array $user, array $params = []): array
+    {
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        try {
+            $userRole = RoleMiddleware::getUserRole($user, $this->pdo);
+            $userRoleName = $userRole ? strtolower($userRole) : '';
+            
+            if ($userRoleName === 'viewer') {
+                http_response_code(403);
+                return ['error' => 'Viewer role is read-only. You cannot archive partners.'];
+            }
+        } catch (\Exception $e) {
+            http_response_code(403);
+            return ['error' => 'Access denied: ' . $e->getMessage()];
+        }
+        
+        $partnerId = (int) ($params['id'] ?? 0);
+        $this->findPartner($partnerId);
+        
+        $stmt = $this->pdo->prepare('UPDATE `campaign_department_partners` SET status = :status WHERE id = :id');
+        $stmt->execute(['id' => $partnerId, 'status' => 'archived']);
+        
+        return ['message' => 'Partner archived successfully', 'id' => $partnerId];
+    }
+    
+    /**
+     * Restore an archived partner
+     */
+    public function restore(?array $user, array $params = []): array
+    {
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        try {
+            $userRole = RoleMiddleware::getUserRole($user, $this->pdo);
+            $userRoleName = $userRole ? strtolower($userRole) : '';
+            
+            if ($userRoleName === 'viewer') {
+                http_response_code(403);
+                return ['error' => 'Viewer role is read-only. You cannot restore partners.'];
+            }
+        } catch (\Exception $e) {
+            http_response_code(403);
+            return ['error' => 'Access denied: ' . $e->getMessage()];
+        }
+        
+        $partnerId = (int) ($params['id'] ?? 0);
+        
+        $stmt = $this->pdo->prepare('UPDATE `campaign_department_partners` SET status = :status WHERE id = :id');
+        $stmt->execute(['id' => $partnerId, 'status' => 'active']);
+        
+        return ['message' => 'Partner restored successfully', 'id' => $partnerId];
+    }
+
+    private function findPartner(int $id): array
+    {
+        $stmt = $this->pdo->prepare('SELECT * FROM `campaign_department_partners` WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $partner = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$partner) {
+            http_response_code(404);
+            throw new RuntimeException('Partner not found');
+        }
+        return $partner;
+    }
+
+    private function assertCampaign(int $id): void
+    {
+        $stmt = $this->pdo->prepare('SELECT id FROM `campaign_department_campaigns` WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        if (!$stmt->fetch()) {
+            throw new RuntimeException('Campaign not found');
+        }
+    }
+
+    private function assertEvent(int $id): void
+    {
+        $stmt = $this->pdo->prepare('SELECT id FROM `campaign_department_events` WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        if (!$stmt->fetch()) {
+            throw new RuntimeException('Event not found');
+        }
+    }
+
+    private function sendWebhook(string $url, array $payload): bool
+    {
+        $secret = getenv('PARTNER_WEBHOOK_SECRET') ?: 'demo_secret';
+        $json = json_encode($payload);
+        $signature = hash_hmac('sha256', $json, $secret);
+
+        $opts = [
+            'http' => [
+                'method' => 'POST',
+                'header' => "Content-Type: application/json\r\nX-Signature: {$signature}\r\n",
+                'content' => $json,
+                'timeout' => 5,
+            ],
+        ];
+        $ctx = stream_context_create($opts);
+        try {
+            $res = @file_get_contents($url, false, $ctx);
+            return $res !== false;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private function logIntegration(string $source, array $payload, string $status): void
+    {
+        $stmt = $this->pdo->prepare('INSERT INTO `campaign_department_integration_logs` (source, payload, status) VALUES (:source, :payload, :status)');
+        $stmt->execute([
+            'source' => $source,
+            'payload' => json_encode($payload),
+            'status' => $status,
+        ]);
+    }
+}
+
+
+
+
+

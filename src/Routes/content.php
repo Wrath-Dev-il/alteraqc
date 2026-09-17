@@ -1,0 +1,131 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Controllers\ContentController;
+use App\Middleware\JWTMiddleware;
+use App\Middleware\ViewerBlockMiddleware;
+
+return [
+    [
+        'method' => 'GET',
+        'path' => '/api/v1/content',
+        'handler' => [ContentController::class, 'index'],
+        'middleware' => JWTMiddleware::class,
+    ],
+    [
+        'method' => 'POST',
+        'path' => '/api/v1/content',
+        'handler' => [ContentController::class, 'store'],
+        'middleware' => [JWTMiddleware::class, ViewerBlockMiddleware::class],
+    ],
+    [
+        'method' => 'GET',
+        'path' => '/api/v1/content/public-feed',
+        'handler' => [ContentController::class, 'publicFeed'],
+    ],
+    [
+        'method' => 'GET',
+        'path' => '/api/v1/content/announcements',
+        'handler' => [ContentController::class, 'announcementsIndex'],
+        'middleware' => JWTMiddleware::class,
+    ],
+    [
+        'method' => 'POST',
+        'path' => '/api/v1/content/announcements',
+        'handler' => [ContentController::class, 'announcementStore'],
+        'middleware' => [JWTMiddleware::class, ViewerBlockMiddleware::class],
+    ],
+    [
+        'method' => 'PUT',
+        'path' => '/api/v1/content/announcements/{id}',
+        'handler' => [ContentController::class, 'announcementUpdate'],
+        'middleware' => [JWTMiddleware::class, ViewerBlockMiddleware::class],
+    ],
+    [
+        'method' => 'DELETE',
+        'path' => '/api/v1/content/announcements/{id}',
+        'handler' => [ContentController::class, 'announcementDelete'],
+        'middleware' => [JWTMiddleware::class, ViewerBlockMiddleware::class],
+    ],
+    [
+        'method' => 'GET',
+        'path' => '/api/v1/content/usage',
+        'handler' => [ContentController::class, 'getUsage'],
+        'middleware' => JWTMiddleware::class,
+    ],
+    // Storage status endpoint - MUST be before {id} routes to avoid matching "storage-status" as an ID
+    [
+        'method' => 'GET',
+        'path' => '/api/v1/content/storage-status',
+        'handler' => [ContentController::class, 'getStorageStatus'],
+        'middleware' => JWTMiddleware::class,
+    ],
+    [
+        'method' => 'GET',
+        'path' => '/api/v1/content/approved',
+        'handler' => [ContentController::class, 'getApproved'],
+        'middleware' => JWTMiddleware::class,
+    ],
+    [
+        'method' => 'GET',
+        'path' => '/api/v1/content/{id}',
+        'handler' => [ContentController::class, 'show'],
+        'middleware' => JWTMiddleware::class,
+    ],
+    [
+        'method' => 'PUT',
+        'path' => '/api/v1/content/{id}',
+        'handler' => [ContentController::class, 'update'],
+        'middleware' => [JWTMiddleware::class, ViewerBlockMiddleware::class],
+    ],
+    [
+        'method' => 'POST',
+        'path' => '/api/v1/content/{id}/approval',
+        'handler' => [ContentController::class, 'updateApproval'],
+        'middleware' => [JWTMiddleware::class, ViewerBlockMiddleware::class],
+    ],
+    [
+        'method' => 'POST',
+        'path' => '/api/v1/content/{id}/attach-campaign',
+        'handler' => [ContentController::class, 'attachToCampaign'],
+        'middleware' => [JWTMiddleware::class, ViewerBlockMiddleware::class],
+    ],
+    [
+        'method' => 'GET',
+        'path' => '/api/v1/content/{id}/campaigns',
+        'handler' => [ContentController::class, 'getCampaigns'],
+        'middleware' => JWTMiddleware::class,
+    ],
+    [
+        'method' => 'POST',
+        'path' => '/api/v1/content/{id}/use',
+        'handler' => [ContentController::class, 'useContent'],
+        'middleware' => JWTMiddleware::class,
+    ],
+    [
+        'method' => 'POST',
+        'path' => '/api/v1/content/{id}/archive',
+        'handler' => [ContentController::class, 'archive'],
+        'middleware' => JWTMiddleware::class,
+    ],
+    [
+        'method' => 'DELETE',
+        'path' => '/api/v1/content/{id}',
+        'handler' => [ContentController::class, 'destroy'],
+        'middleware' => [JWTMiddleware::class, ViewerBlockMiddleware::class],
+    ],
+    // Usage record management routes
+    [
+        'method' => 'PUT',
+        'path' => '/api/v1/content/usage/{id}',
+        'handler' => [ContentController::class, 'updateUsage'],
+        'middleware' => [JWTMiddleware::class, ViewerBlockMiddleware::class],
+    ],
+    [
+        'method' => 'DELETE',
+        'path' => '/api/v1/content/usage/{id}',
+        'handler' => [ContentController::class, 'deleteUsage'],
+        'middleware' => [JWTMiddleware::class, ViewerBlockMiddleware::class],
+    ],
+];

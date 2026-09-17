@@ -1,0 +1,113 @@
+-- Content Repository Module - Enhanced content_items table
+-- Centralized library for storing, managing, approving, and distributing educational materials
+-- Supports campaign planning, audience-targeted advisories, and pre-calamity seminars
+
+-- Enhance existing content_items table with Content Repository fields
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND COLUMN_NAME = 'file_reference');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `campaign_department_content_items` ADD COLUMN file_reference VARCHAR(500) NULL AFTER file_path', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND COLUMN_NAME = 'version_number');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `campaign_department_content_items` ADD COLUMN version_number INT UNSIGNED NOT NULL DEFAULT 1 AFTER approval_status', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND COLUMN_NAME = 'approved_by');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `campaign_department_content_items` ADD COLUMN approved_by INT UNSIGNED NULL AFTER version_number', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND COLUMN_NAME = 'approval_notes');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `campaign_department_content_items` ADD COLUMN approval_notes TEXT NULL AFTER approved_by', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND COLUMN_NAME = 'date_uploaded');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `campaign_department_content_items` ADD COLUMN date_uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER approval_notes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND COLUMN_NAME = 'visibility');
+SET @sql = IF(@col_exists = 0, 'ALTER TABLE `campaign_department_content_items` ADD COLUMN visibility ENUM(\'public\',\'internal\',\'restricted\') NOT NULL DEFAULT \'public\' AFTER date_uploaded', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Add foreign key for approved_by if it doesn't exist
+SET @dbname = DATABASE();
+SET @tablename = 'campaign_department_content_items';
+SET @constraintname = 'fk_content_approver';
+SET @sql = (SELECT IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+     WHERE CONSTRAINT_SCHEMA = @dbname 
+     AND TABLE_NAME = @tablename 
+     AND CONSTRAINT_NAME = @constraintname) > 0,
+    'SELECT 1',
+    CONCAT('ALTER TABLE `', @tablename, '` ADD CONSTRAINT ', @constraintname, ' FOREIGN KEY (approved_by) REFERENCES `campaign_department_users`(id) ON DELETE SET NULL')
+));
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Update approval_status enum to include 'draft' (if not already present)
+-- Note: This may fail if enum already has 'draft', which is fine
+ALTER TABLE `campaign_department_content_items` 
+MODIFY COLUMN approval_status ENUM('draft', 'pending', 'approved', 'rejected') NOT NULL DEFAULT 'draft';
+
+-- Update content_type enum to match Content Repository requirements
+ALTER TABLE `campaign_department_content_items`
+MODIFY COLUMN content_type ENUM('text', 'image', 'video', 'link', 'file', 'poster', 'guideline', 'infographic') NOT NULL DEFAULT 'text';
+
+-- Make campaign_id nullable (content can exist without campaign)
+ALTER TABLE `campaign_department_content_items`
+MODIFY COLUMN campaign_id INT UNSIGNED NULL;
+
+-- Rename intended_audience to intended_audience_segment for consistency (or add if doesn't exist)
+SET @col_old_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND COLUMN_NAME = 'intended_audience');
+SET @col_new_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND COLUMN_NAME = 'intended_audience_segment');
+SET @sql = IF(@col_old_exists > 0 AND @col_new_exists = 0, 'ALTER TABLE `campaign_department_content_items` CHANGE COLUMN intended_audience intended_audience_segment VARCHAR(255) NULL', IF(@col_new_exists = 0, 'ALTER TABLE `campaign_department_content_items` ADD COLUMN intended_audience_segment VARCHAR(255) NULL', 'SELECT 1'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Version history table for tracking content changes (uses content_items.id as content_id)
+CREATE TABLE IF NOT EXISTS `campaign_department_content_item_versions` (
+    version_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    content_id INT UNSIGNED NOT NULL,
+    version_number INT UNSIGNED NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    body TEXT NULL,
+    file_reference VARCHAR(500) NULL,
+    file_path VARCHAR(500) NULL,
+    changed_by INT UNSIGNED NULL,
+    change_notes TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_content_item_versions_content FOREIGN KEY (content_id) REFERENCES `campaign_department_content_items`(id) ON DELETE CASCADE,
+    CONSTRAINT fk_content_item_versions_user FOREIGN KEY (changed_by) REFERENCES `campaign_department_users`(id) ON DELETE SET NULL,
+    UNIQUE KEY uk_content_item_version (content_id, version_number),
+    INDEX idx_content_item_versions_content (content_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Many-to-many relationship between campaigns and content items (for Content Repository)
+CREATE TABLE IF NOT EXISTS `campaign_department_campaign_content_items` (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    campaign_id INT UNSIGNED NOT NULL,
+    content_id INT UNSIGNED NOT NULL,
+    attached_by INT UNSIGNED NULL,
+    attached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_campaign_content_items_campaign FOREIGN KEY (campaign_id) REFERENCES `campaign_department_campaigns`(id) ON DELETE CASCADE,
+    CONSTRAINT fk_campaign_content_items_content FOREIGN KEY (content_id) REFERENCES `campaign_department_content_items`(id) ON DELETE CASCADE,
+    CONSTRAINT fk_campaign_content_items_user FOREIGN KEY (attached_by) REFERENCES `campaign_department_users`(id) ON DELETE SET NULL,
+    UNIQUE KEY uk_campaign_content_item (campaign_id, content_id),
+    INDEX idx_campaign_content_items_campaign (campaign_id),
+    INDEX idx_campaign_content_items_content (content_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Add indexes for better search performance
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND INDEX_NAME = 'idx_content_items_type');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_content_items_type ON `campaign_department_content_items`(content_type)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND INDEX_NAME = 'idx_content_items_hazard');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_content_items_hazard ON `campaign_department_content_items`(hazard_category)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND INDEX_NAME = 'idx_content_items_status');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_content_items_status ON `campaign_department_content_items`(approval_status)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_content_items' AND INDEX_NAME = 'idx_content_items_audience');
+SET @sql = IF(@idx_exists = 0, 'CREATE INDEX idx_content_items_audience ON `campaign_department_content_items`(intended_audience_segment(100))', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

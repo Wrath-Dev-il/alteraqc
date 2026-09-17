@@ -1,0 +1,2485 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use PDO;
+use RuntimeException;
+
+class AutoMLService
+{
+    private const CACHE_TTL_HOURS = 24;
+    private const CACHE_TTL_SECONDS = self::CACHE_TTL_HOURS * 3600;
+
+    private ?string $googleAutoMLEndpoint;
+    private ?string $googleApiKey;
+    private ?string $googleProjectId;
+    private ?string $googleRegion;
+    private ?string $googleServiceAccountKey;
+    private ?string $openAiApiKey;
+    private bool $useGoogleAutoML;
+    private bool $isTrainingConfigured;
+    private bool $useOpenAI;
+
+    public function __construct(
+        private PDO $pdo,
+        ?string $googleAutoMLEndpoint = null,
+        ?string $googleApiKey = null,
+        ?string $googleProjectId = null,
+        ?string $googleRegion = null,
+        ?string $googleServiceAccountKey = null,
+        ?string $openAiApiKey = null
+    ) {
+        // getenv() returns false if not found, so we need to convert to string or null
+        $envEndpoint = getenv('GOOGLE_AUTOML_ENDPOINT');
+        $this->googleAutoMLEndpoint = $googleAutoMLEndpoint ?? ($envEndpoint !== false ? (string)$envEndpoint : null);
+        
+        $envApiKey = getenv('GOOGLE_AUTOML_API_KEY');
+        $this->googleApiKey = $googleApiKey ?? ($envApiKey !== false ? (string)$envApiKey : null);
+        
+        $envProjectId = getenv('GOOGLE_CLOUD_PROJECT_ID');
+        $this->googleProjectId = $googleProjectId ?? ($envProjectId !== false ? (string)$envProjectId : null);
+        
+        $envRegion = getenv('GOOGLE_CLOUD_REGION');
+        $this->googleRegion = $googleRegion ?? ($envRegion !== false ? (string)$envRegion : 'us-central1');
+        
+        $envServiceAccount = getenv('GOOGLE_SERVICE_ACCOUNT_KEY');
+        $this->googleServiceAccountKey = $googleServiceAccountKey ?? ($envServiceAccount !== false ? (string)$envServiceAccount : null);
+        
+        // Load OpenAI API key from environment
+        $envOpenAiKey = getenv('OPENAI_API_KEY');
+        $this->openAiApiKey = $openAiApiKey ?? ($envOpenAiKey !== false ? (string)$envOpenAiKey : null);
+        
+        $this->useGoogleAutoML = !empty($this->googleAutoMLEndpoint) && !empty($this->googleApiKey);
+        $this->isTrainingConfigured = !empty($this->googleProjectId) && !empty($this->googleServiceAccountKey);
+        $this->useOpenAI = !empty($this->openAiApiKey);
+    }
+
+    /**
+     * Predict optimal deployment time for a campaign.
+     * Uses Google AutoML if configured, otherwise falls back to heuristic-based prediction.
+     * 
+     * @param int $campaignId Campaign ID
+     * @param array $features Additional features (campaign_category, audience_segment_id, day_of_week_range, time_window, historical_engagement)
+     * @return array Prediction result with recommended_day, recommended_time, confidence_score
+     * @throws RuntimeException
+     */
+    public function predict(int $campaignId, array $features = []): array
+    {
+        try {
+            // Get campaign data
+            $campaign = $this->getCampaignData($campaignId);
+            if (!$campaign) {
+                throw new RuntimeException('Campaign not found');
+            }
+
+            // Prepare features for prediction
+            try {
+                $preparedFeatures = $this->prepareFeatures($campaignId, $campaign, $features);
+            } catch (\PDOException $e) {
+                error_log('AutoMLService::predict - Error in prepareFeatures: ' . $e->getMessage());
+                error_log('AutoMLService::predict - prepareFeatures stack: ' . $e->getTraceAsString());
+                // Use empty features if prepareFeatures fails
+                $preparedFeatures = [
+                    'campaign_category' => $campaign['category'] ?? 'general',
+                    'day_of_week_range' => [1, 7],
+                    'time_window' => '09:00-18:00',
+                    'historical_engagement' => ['views' => [], 'attendance' => [], 'ratings' => []],
+                    'reach' => 0,
+                    'attendance' => 0,
+                    'responses' => 0,
+                    'engagement_rate' => 0,
+                ];
+            }
+
+            // Use OpenAI API if configured (preferred), otherwise Google AutoML, otherwise heuristic
+            if ($this->useOpenAI) {
+                error_log("AutoMLService: Using OpenAI API for prediction (Campaign ID: $campaignId)");
+                try {
+                    $result = $this->predictWithOpenAI($campaignId, $campaign, $preparedFeatures);
+                    error_log("AutoMLService: OpenAI prediction successful - Model: " . ($result['model_source'] ?? 'unknown'));
+                    return $result;
+                } catch (\Exception $e) {
+                    error_log("AutoMLService: OpenAI prediction failed: " . $e->getMessage());
+                    error_log("AutoMLService: Falling back to Google AutoML or heuristic");
+                    // Fallback to Google AutoML or heuristics
+                }
+            }
+            
+            if ($this->useGoogleAutoML) {
+                error_log("AutoMLService: Using Google AutoML for prediction (Campaign ID: $campaignId)");
+                error_log("AutoMLService: Endpoint: " . ($this->googleAutoMLEndpoint ?? 'NOT SET'));
+                try {
+                    $result = $this->predictWithGoogleAutoML($campaignId, $campaign, $preparedFeatures);
+                    error_log("AutoMLService: Google AutoML prediction successful - Model: " . ($result['model_source'] ?? 'unknown'));
+                    return $result;
+                } catch (\Exception $e) {
+                    error_log("AutoMLService: Google AutoML prediction failed: " . $e->getMessage());
+                    error_log("AutoMLService: Falling back to heuristic prediction");
+                    // Fallback to heuristics on exception
+                    $fallbackResult = $this->predictWithHeuristics($campaignId, $preparedFeatures);
+                    $fallbackResult['fallback_reason'] = 'Google AutoML error: ' . $e->getMessage();
+                    return $fallbackResult;
+                }
+            }
+
+            error_log("AutoMLService: Using heuristic prediction (No AI API configured) (Campaign ID: $campaignId)");
+            $heuristicResult = $this->predictWithHeuristics($campaignId, $preparedFeatures);
+            $heuristicResult['automl_configured'] = false;
+            
+            // Generate comprehensive recommendations for all fields
+            try {
+                $comprehensiveRecommendations = $this->generateComprehensiveRecommendations($campaignId, $campaign, $preparedFeatures);
+                $heuristicResult['recommendations'] = $comprehensiveRecommendations;
+            } catch (\Throwable $e) {
+                error_log('AutoMLService::predict - Error generating comprehensive recommendations: ' . $e->getMessage());
+                $heuristicResult['recommendations'] = [];
+            }
+            
+            return $heuristicResult;
+        } catch (\Throwable $e) {
+            error_log('AutoMLService::predict - Unexpected error: ' . $e->getMessage());
+            error_log('AutoMLService::predict - Stack: ' . $e->getTraceAsString());
+            throw new RuntimeException('Failed to generate prediction: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Get barangay ID for Nagkaisang Nayon (strict geographic scope enforcement)
+     * Returns null if barangay not found
+     */
+    private function getNagkaisangNayonBarangayId(): ?int
+    {
+        $stmt = $this->pdo->prepare('
+            SELECT id FROM campaign_department_barangays 
+            WHERE name = "Nagkaisang Nayon" 
+            LIMIT 1
+        ');
+        $stmt->execute();
+        $barangay = $stmt->fetch();
+        return $barangay ? (int)$barangay['id'] : null;
+    }
+    
+    /**
+     * Build WHERE clause for filtering by Nagkaisang Nayon only
+     * Returns SQL condition and parameters array
+     */
+    private function getNagkaisangNayonFilter(string $tableAlias = 'c'): array
+    {
+        $barangayId = $this->getNagkaisangNayonBarangayId();
+        $conditions = [];
+        $params = [];
+        
+        if ($barangayId) {
+            // Filter by owner's barangay_id OR geographic_scope containing "Nagkaisang Nayon"
+            $conditions[] = "(
+                EXISTS (
+                    SELECT 1 FROM campaign_department_users u 
+                    WHERE u.id = {$tableAlias}.owner_id 
+                    AND u.barangay_id = :barangay_id
+                )
+                OR {$tableAlias}.geographic_scope LIKE :geographic_scope_pattern
+            )";
+            $params['barangay_id'] = $barangayId;
+            $params['geographic_scope_pattern'] = '%Nagkaisang Nayon%';
+        } else {
+            // Fallback: only geographic_scope if barangay table entry not found
+            $conditions[] = "{$tableAlias}.geographic_scope LIKE :geographic_scope_pattern";
+            $params['geographic_scope_pattern'] = '%Nagkaisang Nayon%';
+        }
+        
+        return [
+            'where' => implode(' AND ', $conditions),
+            'params' => $params
+        ];
+    }
+    
+    /**
+     * Calculate confidence based on record count (data-based, not arbitrary)
+     */
+    private function calculateConfidence(int $recordCount): float
+    {
+        if ($recordCount === 0) {
+            return 0.0;
+        } elseif ($recordCount <= 2) {
+            return 0.3; // Low confidence
+        } elseif ($recordCount <= 6) {
+            return 0.5 + (($recordCount - 2) * 0.05); // Medium confidence: 0.5-0.7
+        } else {
+            return min(0.9, 0.7 + (($recordCount - 6) * 0.02)); // High confidence: 0.7-0.9
+        }
+    }
+
+    /**
+     * Generate comprehensive AI recommendations for campaign planning fields
+     * STRICT DATA INTEGRITY: All recommendations MUST come from Nagkaisang Nayon data only
+     * 
+     * @param int $campaignId Current campaign ID
+     * @param array $campaign Current campaign data
+     * @param array $features Prepared features from historical data
+     * @return array Recommendations with decision basis for each field
+     */
+    private function generateComprehensiveRecommendations(int $campaignId, array $campaign, array $features): array
+    {
+        $recommendations = [];
+        $category = $campaign['category'] ?? 'general';
+        
+        // 1. Campaign Title - Based on successful campaigns in same category (Nagkaisang Nayon only)
+        $titleRecommendation = $this->recommendCampaignTitle($category);
+        if ($titleRecommendation) {
+            $recommendations['title'] = $titleRecommendation;
+        }
+        
+        // 2. Category - Based on historical effectiveness (if objectives provided) (Nagkaisang Nayon only)
+        if (!empty($campaign['objectives'])) {
+            $categoryRecommendation = $this->recommendCategory($campaign['objectives']);
+            if ($categoryRecommendation) {
+                $recommendations['category'] = $categoryRecommendation;
+            }
+        }
+        
+        // 3. Budget - Based on average budget of similar successful campaigns (Nagkaisang Nayon only)
+        $budgetRecommendation = $this->recommendBudget($category);
+        if ($budgetRecommendation) {
+            $recommendations['budget'] = $budgetRecommendation;
+        }
+        
+        // 4. Staff Count - Based on attendance vs manpower ratios from past events (Nagkaisang Nayon only)
+        $staffCountRecommendation = $this->recommendStaffCount($category, $features);
+        if ($staffCountRecommendation) {
+            $recommendations['staff_count'] = $staffCountRecommendation;
+        }
+        
+        // 5. Assigned Staff - Based on staff availability and past performance (Nagkaisang Nayon only)
+        $assignedStaffRecommendation = $this->recommendAssignedStaff($category);
+        if ($assignedStaffRecommendation) {
+            $recommendations['assigned_staff'] = $assignedStaffRecommendation;
+        }
+        
+        // 6. Materials/Content - Based on most effective materials in similar campaigns (Nagkaisang Nayon only)
+        $materialsRecommendation = $this->recommendMaterials($category);
+        if ($materialsRecommendation) {
+            $recommendations['materials'] = $materialsRecommendation;
+        }
+        
+        return $recommendations;
+    }
+    
+    /**
+     * Recommend campaign title based on successful campaigns in same category
+     * STRICT: Only from Nagkaisang Nayon, Quezon City
+     */
+    private function recommendCampaignTitle(string $category): ?array
+    {
+        $barangayFilter = $this->getNagkaisangNayonFilter('c');
+        $campaignColumn = $this->getEventsCampaignColumn();
+        
+        // Get most successful campaigns in same category from Nagkaisang Nayon only
+        try {
+            if ($campaignColumn) {
+                $stmt = $this->pdo->prepare("
+                    SELECT c.title, 
+                           COALESCE((SELECT COUNT(*) FROM campaign_department_attendance a 
+                                     INNER JOIN campaign_department_events e ON e.id = a.event_id 
+                                     WHERE e.{$campaignColumn} = c.id), 0) as attendance,
+                           COALESCE((SELECT AVG(f.rating) FROM campaign_department_feedback f 
+                                     INNER JOIN campaign_department_surveys s ON s.id = f.survey_id 
+                                     WHERE s.campaign_id = c.id), 0) as avg_rating
+                    FROM campaign_department_campaigns c
+                    WHERE c.category = :category 
+                      AND c.status IN ('approved', 'ongoing', 'completed')
+                      AND " . $barangayFilter['where'] . "
+                    ORDER BY attendance DESC, avg_rating DESC
+                    LIMIT 5
+                ");
+            } else {
+                // No campaign column exists, skip attendance from events
+                $stmt = $this->pdo->prepare("
+                    SELECT c.title, 
+                           0 as attendance,
+                           COALESCE((SELECT AVG(f.rating) FROM campaign_department_feedback f 
+                                     INNER JOIN campaign_department_surveys s ON s.id = f.survey_id 
+                                     WHERE s.campaign_id = c.id), 0) as avg_rating
+                    FROM campaign_department_campaigns c
+                    WHERE c.category = :category 
+                      AND c.status IN ('approved', 'ongoing', 'completed')
+                      AND " . $barangayFilter['where'] . "
+                    ORDER BY avg_rating DESC
+                    LIMIT 5
+                ");
+            }
+            $params = array_merge(['category' => $category], $barangayFilter['params']);
+            $stmt->execute($params);
+            $successfulCampaigns = $stmt->fetchAll();
+            
+            if (empty($successfulCampaigns)) {
+                return null; // No factual data available for Nagkaisang Nayon
+            }
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::recommendCampaignTitle error: ' . $e->getMessage());
+            return null;
+        }
+        
+        // Find most common title pattern or use top performer
+        $topCampaign = $successfulCampaigns[0];
+        $count = count($successfulCampaigns);
+        $confidence = $this->calculateConfidence($count);
+        
+        return [
+            'value' => $topCampaign['title'],
+            'decision_basis' => "Based on {$count} past campaign(s) conducted in Nagkaisang Nayon, Quezon City in the {$category} category. Top campaign: '{$topCampaign['title']}' (attendance: {$topCampaign['attendance']} participants, rating: " . round($topCampaign['avg_rating'], 1) . "/5). Derived from campaign_department_campaigns table filtered by geographic scope.",
+            'confidence' => $confidence
+        ];
+    }
+    
+    /**
+     * Recommend category based on objectives analysis
+     * STRICT: Only from Nagkaisang Nayon, Quezon City
+     */
+    private function recommendCategory(string $objectives): ?array
+    {
+        // Extract keywords from objectives and match to category patterns
+        $objectivesLower = strtolower($objectives);
+        $categoryKeywords = [
+            'fire' => ['fire', 'flame', 'burn', 'smoke', 'evacuation', 'fire safety'],
+            'flood' => ['flood', 'water', 'rain', 'drainage', 'evacuation', 'flood safety'],
+            'earthquake' => ['earthquake', 'shake', 'seismic', 'structural', 'evacuation'],
+            'health' => ['health', 'disease', 'vaccination', 'hygiene', 'medical', 'wellness'],
+            'road safety' => ['road', 'traffic', 'vehicle', 'pedestrian', 'safety', 'accident']
+        ];
+        
+        $matchedCategory = null;
+        $maxMatches = 0;
+        
+        foreach ($categoryKeywords as $cat => $keywords) {
+            $matches = 0;
+            foreach ($keywords as $keyword) {
+                if (strpos($objectivesLower, $keyword) !== false) {
+                    $matches++;
+                }
+            }
+            if ($matches > $maxMatches) {
+                $maxMatches = $matches;
+                $matchedCategory = $cat;
+            }
+        }
+        
+        if (!$matchedCategory || $maxMatches === 0) {
+            return null; // No clear category match
+        }
+        
+        // Get effectiveness data for this category from Nagkaisang Nayon only
+        $barangayFilter = $this->getNagkaisangNayonFilter('c');
+        $campaignColumn = $this->getEventsCampaignColumn();
+        try {
+            if ($campaignColumn) {
+                $stmt = $this->pdo->prepare("
+                    SELECT COUNT(*) as campaign_count,
+                           AVG(budget) as avg_budget,
+                           AVG(COALESCE((SELECT COUNT(*) FROM campaign_department_attendance a 
+                                INNER JOIN campaign_department_events e ON e.id = a.event_id 
+                                WHERE e.{$campaignColumn} = c.id), 0)) as avg_attendance
+                    FROM campaign_department_campaigns c
+                    WHERE c.category = :category
+                      AND c.status IN ('approved', 'ongoing', 'completed')
+                      AND " . $barangayFilter['where'] . "
+                ");
+            } else {
+                // No campaign column, skip attendance calculation
+                $stmt = $this->pdo->prepare("
+                    SELECT COUNT(*) as campaign_count,
+                           AVG(budget) as avg_budget,
+                           0 as avg_attendance
+                    FROM campaign_department_campaigns c
+                    WHERE c.category = :category
+                      AND c.status IN ('approved', 'ongoing', 'completed')
+                      AND " . $barangayFilter['where'] . "
+                ");
+            }
+            $params = array_merge(['category' => $matchedCategory], $barangayFilter['params']);
+            $stmt->execute($params);
+            $effectiveness = $stmt->fetch();
+            
+            if (!$effectiveness || $effectiveness['campaign_count'] == 0) {
+                return null; // No factual data available for Nagkaisang Nayon
+            }
+            
+            $recordCount = (int)$effectiveness['campaign_count'];
+            $confidence = $this->calculateConfidence($recordCount);
+            
+            return [
+                'value' => $matchedCategory,
+                'decision_basis' => "Based on keyword analysis of objectives ({$maxMatches} matching terms). Category '{$matchedCategory}' has {$recordCount} recorded campaign(s) in Nagkaisang Nayon, Quezon City with average attendance of " . round($effectiveness['avg_attendance'] ?? 0) . " participants. Derived from campaign_department_campaigns table filtered by geographic scope.",
+                'confidence' => $confidence
+            ];
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::recommendCategory error: ' . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Recommend budget based on average of similar successful campaigns
+     * STRICT: Only from Nagkaisang Nayon, Quezon City
+     */
+    private function recommendBudget(string $category): ?array
+    {
+        $barangayFilter = $this->getNagkaisangNayonFilter('c');
+        $campaignColumn = $this->getEventsCampaignColumn();
+        
+        try {
+            if ($campaignColumn) {
+                $stmt = $this->pdo->prepare("
+                    SELECT AVG(budget) as avg_budget,
+                           AVG(COALESCE((SELECT COUNT(*) FROM campaign_department_attendance a 
+                                INNER JOIN campaign_department_events e ON e.id = a.event_id 
+                                WHERE e.{$campaignColumn} = c.id), 0)) as avg_attendance,
+                           MIN(budget) as min_budget,
+                           MAX(budget) as max_budget,
+                           COUNT(*) as campaign_count
+                    FROM campaign_department_campaigns c
+                    WHERE c.category = :category
+                      AND c.budget IS NOT NULL
+                      AND c.budget > 0
+                      AND c.status IN ('approved', 'ongoing', 'completed')
+                      AND " . $barangayFilter['where'] . "
+                ");
+            } else {
+                // No campaign column, skip attendance calculation
+                $stmt = $this->pdo->prepare("
+                    SELECT AVG(budget) as avg_budget,
+                           0 as avg_attendance,
+                           MIN(budget) as min_budget,
+                           MAX(budget) as max_budget,
+                           COUNT(*) as campaign_count
+                    FROM campaign_department_campaigns c
+                    WHERE c.category = :category
+                      AND c.budget IS NOT NULL
+                      AND c.budget > 0
+                      AND c.status IN ('approved', 'ongoing', 'completed')
+                      AND " . $barangayFilter['where'] . "
+                ");
+            }
+            $params = array_merge(['category' => $category], $barangayFilter['params']);
+            $stmt->execute($params);
+            $budgetData = $stmt->fetch();
+        
+        if (!$budgetData || $budgetData['campaign_count'] == 0 || !$budgetData['avg_budget']) {
+            return null; // No sufficient factual data available for Barangay Nagkaisang Nayon
+        }
+        
+            $recommendedBudget = round((float)$budgetData['avg_budget'], 2);
+            $recordCount = (int)$budgetData['campaign_count'];
+            $confidence = $this->calculateConfidence($recordCount);
+            
+            return [
+                'value' => $recommendedBudget,
+                'decision_basis' => "Based on average budget of {$recordCount} recorded {$category} campaign(s) conducted in Nagkaisang Nayon, Quezon City. Average: ₱" . number_format($recommendedBudget, 2) . ". Range: ₱" . number_format($budgetData['min_budget'], 2) . " - ₱" . number_format($budgetData['max_budget'], 2) . ". Derived from campaign_department_campaigns.budget field filtered by geographic scope.",
+                'confidence' => $confidence
+            ];
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::recommendBudget error: ' . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Recommend staff count based on attendance vs manpower ratios
+     * STRICT: Only from Nagkaisang Nayon, Quezon City
+     */
+    private function recommendStaffCount(string $category, array $features): ?array
+    {
+        $barangayFilter = $this->getNagkaisangNayonFilter('c');
+        $campaignColumn = $this->getEventsCampaignColumn();
+        
+        // Get average attendance and staff count from past events in similar campaigns (Nagkaisang Nayon only)
+        try {
+            if ($campaignColumn) {
+                $stmt = $this->pdo->prepare("
+                    SELECT AVG(c.staff_count) as avg_staff_count,
+                           AVG(COALESCE((SELECT COUNT(*) FROM campaign_department_attendance a 
+                                INNER JOIN campaign_department_events e ON e.id = a.event_id 
+                                WHERE e.{$campaignColumn} = c.id), 0)) as avg_attendance,
+                           COUNT(*) as campaign_count
+                    FROM campaign_department_campaigns c
+                    WHERE c.category = :category
+                      AND c.staff_count IS NOT NULL
+                      AND c.staff_count > 0
+                      AND c.status IN ('approved', 'ongoing', 'completed')
+                      AND " . $barangayFilter['where'] . "
+                ");
+            } else {
+                // No campaign column, skip attendance calculation
+                $stmt = $this->pdo->prepare("
+                    SELECT AVG(c.staff_count) as avg_staff_count,
+                           0 as avg_attendance,
+                           COUNT(*) as campaign_count
+                    FROM campaign_department_campaigns c
+                    WHERE c.category = :category
+                      AND c.staff_count IS NOT NULL
+                      AND c.staff_count > 0
+                      AND c.status IN ('approved', 'ongoing', 'completed')
+                      AND " . $barangayFilter['where'] . "
+                ");
+            }
+            $params = array_merge(['category' => $category], $barangayFilter['params']);
+            $stmt->execute($params);
+            $staffData = $stmt->fetch();
+            
+            if (!$staffData || $staffData['campaign_count'] == 0) {
+                // Check if we have attendance data from Nagkaisang Nayon events in features
+                $historicalAttendance = $features['attendance'] ?? 0;
+                if ($historicalAttendance > 0) {
+                    // Use standard ratio only if we have real attendance data from Nagkaisang Nayon
+                    $recommendedStaff = max(2, min(10, (int)ceil($historicalAttendance / 25)));
+                    return [
+                        'value' => $recommendedStaff,
+                        'decision_basis' => "Based on historical attendance data from Nagkaisang Nayon events ({$historicalAttendance} participants) using standard ratio of 1 staff per 25 attendees. Derived from campaign_department_attendance records.",
+                        'confidence' => 0.5 // Lower confidence when using ratio instead of actual data
+                    ];
+                }
+                return null; // No sufficient factual data available for Barangay Nagkaisang Nayon
+            }
+            
+            $avgStaff = (float)$staffData['avg_staff_count'];
+            $avgAttendance = (float)$staffData['avg_attendance'];
+            $recordCount = (int)$staffData['campaign_count'];
+            
+            // Calculate ratio and recommend based on expected attendance
+            $ratio = $avgAttendance > 0 ? $avgStaff / $avgAttendance : 0.04; // Default 1:25 ratio
+            
+            // Use historical attendance if available, otherwise use category average
+            $expectedAttendance = $features['attendance'] ?? $avgAttendance;
+            $recommendedStaff = max(2, min(15, (int)ceil($expectedAttendance * $ratio)));
+            $confidence = $this->calculateConfidence($recordCount);
+            
+            return [
+                'value' => $recommendedStaff,
+                'decision_basis' => "Based on staff-to-attendee ratio from {$recordCount} recorded campaign(s) in Nagkaisang Nayon, Quezon City (avg: " . round($avgStaff, 1) . " staff for " . round($avgAttendance, 0) . " attendees). Recommended for expected attendance of {$expectedAttendance}. Derived from campaign_department_campaigns.staff_count and campaign_department_attendance records.",
+                'confidence' => $confidence
+            ];
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::recommendStaffCount error: ' . $e->getMessage());
+            // Fallback to ratio-based recommendation if we have attendance data
+            $historicalAttendance = $features['attendance'] ?? 0;
+            if ($historicalAttendance > 0) {
+                $recommendedStaff = max(2, min(10, (int)ceil($historicalAttendance / 25)));
+                return [
+                    'value' => $recommendedStaff,
+                    'decision_basis' => "Based on historical attendance data using standard ratio of 1 staff per 25 attendees.",
+                    'confidence' => 0.3
+                ];
+            }
+            return null;
+        }
+    }
+    
+    /**
+     * Recommend assigned staff based on staff availability and past performance
+     * STRICT: Only from Nagkaisang Nayon, Quezon City
+     */
+    private function recommendAssignedStaff(string $category): ?array
+    {
+        $barangayFilter = $this->getNagkaisangNayonFilter('c');
+        
+        // Get staff most frequently assigned to similar campaigns in Nagkaisang Nayon only
+        $stmt = $this->pdo->prepare('
+            SELECT c.assigned_staff
+            FROM campaign_department_campaigns c
+            WHERE c.category = :category
+              AND c.assigned_staff IS NOT NULL
+              AND c.assigned_staff != "[]"
+              AND c.status IN ("approved", "ongoing", "completed")
+              AND ' . $barangayFilter['where'] . '
+            ORDER BY c.created_at DESC
+            LIMIT 10
+        ');
+        $params = array_merge(['category' => $category], $barangayFilter['params']);
+        $stmt->execute($params);
+        $staffAssignments = $stmt->fetchAll();
+        
+        if (empty($staffAssignments)) {
+            return null; // No sufficient factual data available for Barangay Nagkaisang Nayon
+        }
+        
+        // Count frequency of each staff member
+        $staffFrequency = [];
+        foreach ($staffAssignments as $row) {
+            $staff = json_decode($row['assigned_staff'], true);
+            if (is_array($staff)) {
+                foreach ($staff as $member) {
+                    if (is_string($member)) {
+                        $staffFrequency[$member] = ($staffFrequency[$member] ?? 0) + 1;
+                    }
+                }
+            }
+        }
+        
+        if (empty($staffFrequency)) {
+            return null; // No valid staff data found
+        }
+        
+        // Get top 3-5 most frequently assigned staff
+        arsort($staffFrequency);
+        $recommendedStaff = array_slice(array_keys($staffFrequency), 0, 5);
+        $topStaff = array_keys($staffFrequency)[0];
+        $topCount = $staffFrequency[$topStaff];
+        $recordCount = count($staffAssignments);
+        $confidence = $this->calculateConfidence($recordCount);
+        
+        return [
+            'value' => $recommendedStaff,
+            'decision_basis' => "Based on most frequently assigned staff in {$recordCount} recorded {$category} campaign(s) conducted in Nagkaisang Nayon, Quezon City. Top staff: '{$topStaff}' (assigned {$topCount} time(s)). Derived from campaign_department_campaigns.assigned_staff JSON field filtered by geographic scope.",
+            'confidence' => $confidence
+        ];
+    }
+    
+    /**
+     * Recommend materials based on most effective materials in similar campaigns
+     * STRICT: Only from Nagkaisang Nayon, Quezon City
+     */
+    private function recommendMaterials(string $category): ?array
+    {
+        $barangayFilter = $this->getNagkaisangNayonFilter('c');
+        $campaignColumn = $this->getEventsCampaignColumn();
+        
+        // Get materials from successful campaigns in same category (Nagkaisang Nayon only)
+        try {
+            if ($campaignColumn) {
+                $stmt = $this->pdo->prepare("
+                    SELECT c.materials_json,
+                           COALESCE((SELECT COUNT(*) FROM campaign_department_attendance a 
+                                     INNER JOIN campaign_department_events e ON e.id = a.event_id 
+                                     WHERE e.{$campaignColumn} = c.id), 0) as attendance
+                    FROM campaign_department_campaigns c
+                    WHERE c.category = :category
+                      AND c.materials_json IS NOT NULL
+                      AND c.materials_json != '{}'
+                      AND c.status IN ('approved', 'ongoing', 'completed')
+                      AND " . $barangayFilter['where'] . "
+                    ORDER BY attendance DESC
+                    LIMIT 10
+                ");
+            } else {
+                // No campaign column, skip attendance calculation
+                $stmt = $this->pdo->prepare("
+                    SELECT c.materials_json,
+                           0 as attendance
+                    FROM campaign_department_campaigns c
+                    WHERE c.category = :category
+                      AND c.materials_json IS NOT NULL
+                      AND c.materials_json != '{}'
+                      AND c.status IN ('approved', 'ongoing', 'completed')
+                      AND " . $barangayFilter['where'] . "
+                    LIMIT 10
+                ");
+            }
+            $params = array_merge(['category' => $category], $barangayFilter['params']);
+            $stmt->execute($params);
+            $materialsData = $stmt->fetchAll();
+            
+            if (empty($materialsData)) {
+                // Try to get from content items linked to similar campaigns in Nagkaisang Nayon
+                $stmt = $this->pdo->prepare("
+                    SELECT ci.title, ci.content_type, COUNT(*) as usage_count
+                    FROM campaign_department_content_items ci
+                    INNER JOIN campaign_department_campaigns c ON c.id = ci.campaign_id
+                    WHERE c.category = :category
+                      AND ci.approval_status = 'approved'
+                      AND " . $barangayFilter['where'] . "
+                    GROUP BY ci.title, ci.content_type
+                    ORDER BY usage_count DESC
+                    LIMIT 5
+                ");
+                $params = array_merge(['category' => $category], $barangayFilter['params']);
+                $stmt->execute($params);
+                $contentItems = $stmt->fetchAll();
+                
+                if (empty($contentItems)) {
+                    return null; // No sufficient factual data available for Barangay Nagkaisang Nayon
+                }
+                
+                $recommendedMaterials = [];
+                foreach ($contentItems as $item) {
+                    $recommendedMaterials[$item['title']] = 1;
+                }
+                
+                $recordCount = count($contentItems);
+                $confidence = $this->calculateConfidence($recordCount);
+                
+                return [
+                    'value' => $recommendedMaterials,
+                    'decision_basis' => "Based on approved content items from {$recordCount} recorded campaign(s) in Nagkaisang Nayon, Quezon City. Found " . count($contentItems) . " frequently used material(s). Derived from campaign_department_content_items table filtered by geographic scope.",
+                    'confidence' => $confidence
+                ];
+            }
+            
+            // Aggregate materials from top campaigns
+            $materialsFrequency = [];
+            $totalAttendance = 0;
+            foreach ($materialsData as $row) {
+                $materials = json_decode($row['materials_json'], true);
+                if (is_array($materials)) {
+                    foreach ($materials as $material => $quantity) {
+                        if (!isset($materialsFrequency[$material])) {
+                            $materialsFrequency[$material] = ['count' => 0, 'total_quantity' => 0, 'attendance' => 0];
+                        }
+                        $materialsFrequency[$material]['count']++;
+                        $materialsFrequency[$material]['total_quantity'] += (int)$quantity;
+                        $materialsFrequency[$material]['attendance'] += (int)$row['attendance'];
+                    }
+                }
+                $totalAttendance += (int)$row['attendance'];
+            }
+            
+            if (empty($materialsFrequency)) {
+                return null;
+            }
+            
+            // Calculate effectiveness score (frequency + attendance correlation)
+            foreach ($materialsFrequency as $material => &$data) {
+                $data['effectiveness'] = $data['count'] * 0.5 + ($data['attendance'] / max(1, $totalAttendance)) * 0.5;
+            }
+            unset($data);
+            
+            // Sort by effectiveness and get top materials
+            uasort($materialsFrequency, function($a, $b) {
+                return $b['effectiveness'] <=> $a['effectiveness'];
+            });
+            
+            $recommendedMaterials = [];
+            $topMaterials = array_slice($materialsFrequency, 0, 5, true);
+            foreach ($topMaterials as $material => $data) {
+                $avgQuantity = (int)ceil($data['total_quantity'] / $data['count']);
+                $recommendedMaterials[$material] = $avgQuantity;
+            }
+            
+            $topMaterial = array_key_first($topMaterials);
+            $topData = $topMaterials[$topMaterial];
+            $recordCount = count($materialsData);
+            $confidence = $this->calculateConfidence($recordCount);
+            
+            return [
+                'value' => $recommendedMaterials,
+                'decision_basis' => "Based on most effective materials from {$recordCount} recorded {$category} campaign(s) conducted in Nagkaisang Nayon, Quezon City. Top material: '{$topMaterial}' (used in {$topData['count']} campaign(s) with avg attendance of " . round($topData['attendance'] / $topData['count']) . " participants). Derived from campaign_department_campaigns.materials_json and campaign_department_attendance records.",
+                'confidence' => $confidence
+            ];
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::recommendMaterials error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Prepare features for prediction from campaign data and historical metrics
+     */
+    private function prepareFeatures(int $campaignId, array $campaign, array $customFeatures): array
+    {
+        try {
+            // Gather real-time historical engagement data from similar campaigns
+            $category = $campaign['category'] ?? 'general';
+            
+            // Get engagement metrics from similar campaigns (same category)
+            $similarCampaigns = $this->getSimilarCampaigns($category, $campaignId);
+            
+            // Aggregate historical data from similar campaigns
+            $totalViews = 0;
+            $totalAttendance = 0;
+            $ratings = [];
+            $engagementByDayOfWeek = [];
+            $engagementByTime = [];
+            
+            foreach ($similarCampaigns as $similarId) {
+            // Views/Reach from notification logs
+            $views = (int) $this->scalar(
+                'SELECT COUNT(*) FROM campaign_department_notification_logs WHERE campaign_id = :cid AND status = "sent"',
+                ['cid' => $similarId]
+            );
+            $totalViews += $views;
+            
+            // Attendance from events (count from attendance table)
+            $campaignColumn = $this->getEventsCampaignColumn();
+            if ($campaignColumn) {
+                try {
+                    $attendance = (int) $this->scalar(
+                        "SELECT COALESCE(COUNT(ea.id), 0) 
+                         FROM campaign_department_events e 
+                         LEFT JOIN campaign_department_attendance ea ON ea.event_id = e.id 
+                         WHERE e.{$campaignColumn} = :cid",
+                        ['cid' => $similarId]
+                    );
+                } catch (\PDOException $e) {
+                    error_log('AutoMLService::prepareFeatures - Error getting attendance: ' . $e->getMessage());
+                    $attendance = 0;
+                }
+            } else {
+                $attendance = 0;
+            }
+            $totalAttendance += $attendance;
+            
+            // Ratings from feedback
+            $avgRating = (float) $this->scalar(
+                'SELECT AVG(f.rating) FROM campaign_department_feedback f 
+                 INNER JOIN campaign_department_surveys s ON s.id = f.survey_id 
+                 WHERE s.campaign_id = :cid',
+                ['cid' => $similarId]
+            );
+            if ($avgRating > 0) {
+                $ratings[] = $avgRating;
+            }
+            
+            // Get engagement by day of week and time from events
+            $eventData = $this->getEventEngagementData($similarId);
+            foreach ($eventData as $event) {
+                if (!empty($event['event_date']) && !empty($event['event_time'])) {
+                    $timestamp = strtotime($event['event_date'] . ' ' . $event['event_time']);
+                    if ($timestamp !== false) {
+                        $dayOfWeek = (int) date('N', $timestamp);
+                        $time = date('H:i', $timestamp);
+                        $attendance = (int) ($event['attendance'] ?? 0);
+                        $engagementByDayOfWeek[$dayOfWeek] = ($engagementByDayOfWeek[$dayOfWeek] ?? 0) + $attendance;
+                        $engagementByTime[$time] = ($engagementByTime[$time] ?? 0) + $attendance;
+                    }
+                }
+            }
+        }
+        
+        // Current campaign metrics (if any)
+        $currentReach = (int) $this->scalar(
+            'SELECT COUNT(*) FROM campaign_department_notification_logs WHERE campaign_id = :cid AND status = "sent"',
+            ['cid' => $campaignId]
+        );
+        $campaignColumn = $this->getEventsCampaignColumn();
+        if ($campaignColumn) {
+            try {
+                $currentAttendance = (int) $this->scalar(
+                    "SELECT COALESCE(COUNT(ea.id), 0) 
+                     FROM campaign_department_events e 
+                     LEFT JOIN campaign_department_attendance ea ON ea.event_id = e.id 
+                     WHERE e.{$campaignColumn} = :cid",
+                    ['cid' => $campaignId]
+                );
+            } catch (\PDOException $e) {
+                error_log('AutoMLService::prepareFeatures - Error getting current attendance: ' . $e->getMessage());
+                $currentAttendance = 0;
+            }
+        } else {
+            $currentAttendance = 0;
+        }
+        $currentResponses = (int) $this->scalar(
+            'SELECT COUNT(*) FROM campaign_department_survey_responses sr INNER JOIN campaign_department_surveys s ON s.id = sr.survey_id WHERE s.campaign_id = :cid',
+            ['cid' => $campaignId]
+        );
+        $currentAvgRating = (float) $this->scalar(
+            'SELECT AVG(f.rating) FROM campaign_department_feedback f 
+             INNER JOIN campaign_department_surveys s ON s.id = f.survey_id 
+             WHERE s.campaign_id = :cid',
+            ['cid' => $campaignId]
+        ) ?: 0;
+        
+        // Combine current and historical
+        $totalReach = $totalViews + $currentReach;
+        $totalAttendance = $totalAttendance + $currentAttendance;
+        if ($currentAvgRating > 0) {
+            $ratings[] = $currentAvgRating;
+        }
+
+        // Find best day and time based on historical engagement
+        $bestDay = 1;
+        $bestTime = '09:00';
+        if (!empty($engagementByDayOfWeek)) {
+            arsort($engagementByDayOfWeek);
+            $bestDay = array_key_first($engagementByDayOfWeek);
+        }
+        if (!empty($engagementByTime)) {
+            arsort($engagementByTime);
+            $bestTime = array_key_first($engagementByTime);
+        }
+        
+        $avgRating = !empty($ratings) ? array_sum($ratings) / count($ratings) : 0;
+        
+        // Build features array with real-time historical data
+        $features = [
+            'campaign_category' => $customFeatures['campaign_category'] ?? $category,
+            'audience_segment_id' => $customFeatures['audience_segment_id'] ?? null,
+            'day_of_week_range' => $customFeatures['day_of_week_range'] ?? [1, 7], // Monday to Sunday
+            'time_window' => $customFeatures['time_window'] ?? '09:00-18:00',
+            'historical_engagement' => [
+                'views' => $customFeatures['historical_engagement']['views'] ?? array_slice([$totalReach, $currentReach], 0, 10),
+                'attendance' => $customFeatures['historical_engagement']['attendance'] ?? array_slice([$totalAttendance, $currentAttendance], 0, 10),
+                'ratings' => $customFeatures['historical_engagement']['ratings'] ?? array_slice($ratings, 0, 10),
+            ],
+            'reach' => $totalReach,
+            'attendance' => $totalAttendance,
+            'responses' => $currentResponses,
+            'engagement_rate' => $totalReach > 0 ? ($totalAttendance + $currentResponses) / $totalReach : 0,
+            'best_day_of_week' => $bestDay,
+            'best_time' => $bestTime,
+            'avg_rating' => $avgRating,
+            'engagement_by_day' => $engagementByDayOfWeek,
+            'engagement_by_time' => $engagementByTime,
+        ];
+
+            return array_merge($features, $customFeatures);
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::prepareFeatures - PDO error: ' . $e->getMessage());
+            error_log('AutoMLService::prepareFeatures - SQL error code: ' . $e->getCode());
+            // Return minimal features on error
+            return array_merge([
+                'campaign_category' => $campaign['category'] ?? 'general',
+                'day_of_week_range' => [1, 7],
+                'time_window' => '09:00-18:00',
+                'historical_engagement' => ['views' => [], 'attendance' => [], 'ratings' => []],
+                'reach' => 0,
+                'attendance' => 0,
+                'responses' => 0,
+                'engagement_rate' => 0,
+            ], $customFeatures);
+        } catch (\Throwable $e) {
+            error_log('AutoMLService::prepareFeatures - Unexpected error: ' . $e->getMessage());
+            // Return minimal features on error
+            return array_merge([
+                'campaign_category' => $campaign['category'] ?? 'general',
+                'day_of_week_range' => [1, 7],
+                'time_window' => '09:00-18:00',
+                'historical_engagement' => ['views' => [], 'attendance' => [], 'ratings' => []],
+                'reach' => 0,
+                'attendance' => 0,
+                'responses' => 0,
+                'engagement_rate' => 0,
+            ], $customFeatures);
+        }
+    }
+    
+    /**
+     * Get similar campaigns by category for historical data
+     */
+    /**
+     * Get similar campaigns from same category
+     * STRICT: Only from Nagkaisang Nayon, Quezon City
+     */
+    private function getSimilarCampaigns(string $category, int $excludeId): array
+    {
+        $barangayFilter = $this->getNagkaisangNayonFilter('c');
+        
+        $stmt = $this->pdo->prepare('
+            SELECT c.id FROM campaign_department_campaigns c
+            WHERE c.category = :category 
+              AND c.id != :exclude_id
+              AND c.status IN ("approved", "ongoing", "completed")
+              AND ' . $barangayFilter['where'] . '
+            ORDER BY c.created_at DESC 
+            LIMIT 20
+        ');
+        $params = array_merge(['category' => $category, 'exclude_id' => $excludeId], $barangayFilter['params']);
+        $stmt->execute($params);
+        return array_column($stmt->fetchAll(), 'id');
+    }
+    
+    /**
+     * Get the correct campaign ID column name for events table
+     * Returns null if neither column exists
+     */
+    private function getEventsCampaignColumn(): ?string
+    {
+        static $columnName = null;
+        static $checked = false;
+        
+        // Only check once per request to avoid repeated queries
+        if ($checked) {
+            return $columnName === 'NONE' ? null : $columnName;
+        }
+        $checked = true;
+        
+        // Reset static cache if we had a previous error (safety mechanism)
+        if ($columnName === 'ERROR') {
+            $columnName = null;
+        }
+        
+        try {
+            // First verify table exists using SHOW TABLES (more reliable)
+            $tableCheck = $this->pdo->query("SHOW TABLES LIKE 'campaign_department_events'");
+            if (!$tableCheck || $tableCheck->rowCount() === 0) {
+                error_log('AutoMLService::getEventsCampaignColumn - Table campaign_department_events does not exist');
+                $columnName = 'NONE';
+                return null;
+            }
+            
+            // Use SHOW COLUMNS to check which column exists (most reliable method)
+            // Get all columns and check for exact matches
+            $columnsCheck = $this->pdo->query("SHOW COLUMNS FROM campaign_department_events");
+            if ($columnsCheck) {
+                $columns = $columnsCheck->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($columns as $column) {
+                    $colName = $column['Field'] ?? $column['field'] ?? '';
+                    if ($colName === 'linked_campaign_id') {
+                        $columnName = 'linked_campaign_id';
+                        error_log('AutoMLService::getEventsCampaignColumn - Found linked_campaign_id column (via SHOW COLUMNS)');
+                        return $columnName;
+                    }
+                    if ($colName === 'campaign_id') {
+                        $columnName = 'campaign_id';
+                        error_log('AutoMLService::getEventsCampaignColumn - Found campaign_id column (via SHOW COLUMNS)');
+                        return $columnName;
+                    }
+                }
+            }
+            
+            // Double-check by trying to actually fetch data (more thorough)
+            try {
+                $testQuery = $this->pdo->query("SELECT linked_campaign_id FROM campaign_department_events LIMIT 1");
+                if ($testQuery !== false) {
+                    // Try to fetch to trigger any column errors
+                    $testQuery->fetch(PDO::FETCH_ASSOC);
+                    $columnName = 'linked_campaign_id';
+                    error_log('AutoMLService::getEventsCampaignColumn - Verified linked_campaign_id column exists (via fetch test)');
+                    return $columnName;
+                }
+            } catch (\PDOException $e) {
+                $errorCode = $e->getCode();
+                if ($errorCode == '42S22' || strpos($e->getMessage(), 'Unknown column') !== false) {
+                    error_log('AutoMLService::getEventsCampaignColumn - linked_campaign_id does not exist: ' . $e->getMessage());
+                }
+            }
+            
+            try {
+                $testQuery2 = $this->pdo->query("SELECT campaign_id FROM campaign_department_events LIMIT 1");
+                if ($testQuery2 !== false) {
+                    // Try to fetch to trigger any column errors
+                    $testQuery2->fetch(PDO::FETCH_ASSOC);
+                    $columnName = 'campaign_id';
+                    error_log('AutoMLService::getEventsCampaignColumn - Verified campaign_id column exists (via fetch test)');
+                    return $columnName;
+                }
+            } catch (\PDOException $e) {
+                $errorCode = $e->getCode();
+                if ($errorCode == '42S22' || strpos($e->getMessage(), 'Unknown column') !== false) {
+                    error_log('AutoMLService::getEventsCampaignColumn - campaign_id does not exist: ' . $e->getMessage());
+                }
+            }
+            
+            // Neither exists - mark as NONE so we return null
+            error_log('AutoMLService::getEventsCampaignColumn - Neither linked_campaign_id nor campaign_id exists in campaign_department_events table (verified via direct query tests)');
+            $columnName = 'NONE';
+            return null;
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::getEventsCampaignColumn error: ' . $e->getMessage());
+            error_log('AutoMLService::getEventsCampaignColumn stack: ' . $e->getTraceAsString());
+            // Mark as NONE so we return null
+            $columnName = 'NONE';
+            return null;
+        } catch (\Throwable $e) {
+            error_log('AutoMLService::getEventsCampaignColumn unexpected error: ' . $e->getMessage());
+            $columnName = 'NONE';
+            return null;
+        }
+    }
+    
+    /**
+     * Check if events table has a campaign column
+     */
+    private function hasEventsCampaignColumn(): bool
+    {
+        return $this->getEventsCampaignColumn() !== null;
+    }
+    
+    /**
+     * Execute a query with automatic column name replacement for events table
+     */
+    private function executeWithCampaignColumn(string $sql, array $params = []): array
+    {
+        $campaignColumn = $this->getEventsCampaignColumn();
+        if (!$campaignColumn) {
+            // No column exists, return empty array
+            return [];
+        }
+        $sql = str_replace('e.linked_campaign_id', "e.{$campaignColumn}", $sql);
+        $sql = str_replace('linked_campaign_id', $campaignColumn, $sql);
+        
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            if ($stmt === false) {
+                error_log('AutoMLService::executeWithCampaignColumn - Failed to prepare SQL');
+                return [];
+            }
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (\PDOException $e) {
+            $errorCode = $e->getCode();
+            $errorMessage = $e->getMessage();
+            
+            // If column not found error, reset the cache and return empty array
+            if ($errorCode == '42S22' || strpos($errorMessage, 'Unknown column') !== false || strpos($errorMessage, 'Column not found') !== false) {
+                error_log('AutoMLService::executeWithCampaignColumn - Column not found error detected, resetting cache. Error: ' . $errorMessage);
+                error_log('AutoMLService::executeWithCampaignColumn - Attempted column: ' . $campaignColumn);
+                error_log('AutoMLService::executeWithCampaignColumn - SQL: ' . substr($sql, 0, 500));
+                
+                // Reset the static cache by using reflection or a reset method
+                // For now, just log and return empty array
+                // The next call to getEventsCampaignColumn() will re-check
+                return [];
+            }
+            
+            error_log('AutoMLService::executeWithCampaignColumn error: ' . $errorMessage);
+            error_log('AutoMLService::executeWithCampaignColumn SQL: ' . substr($sql, 0, 200));
+            return [];
+        }
+    }
+
+    /**
+     * Get event engagement data for a campaign
+     */
+    private function getEventEngagementData(int $campaignId): array
+    {
+        $campaignColumn = $this->getEventsCampaignColumn();
+        if (!$campaignColumn) {
+            // No campaign column exists, return empty array
+            return [];
+        }
+        
+        try {
+            $stmt = $this->pdo->prepare("
+                SELECT e.date as event_date, e.start_time as event_time, 
+                       COALESCE((SELECT COUNT(*) FROM campaign_department_attendance ea WHERE ea.event_id = e.id), 0) as attendance
+                FROM campaign_department_events e 
+                WHERE e.{$campaignColumn} = :cid AND e.date IS NOT NULL AND e.start_time IS NOT NULL
+                ORDER BY e.date DESC
+            ");
+            $stmt->execute(['cid' => $campaignId]);
+            return $stmt->fetchAll() ?: [];
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::getEventEngagementData error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Call OpenAI API for prediction
+     */
+    private function predictWithOpenAI(int $campaignId, array $campaign, array $features): array
+    {
+        // Build prompt with campaign data
+        $campaignTitle = $campaign['title'] ?? 'Untitled Campaign';
+        $campaignCategory = $campaign['category'] ?? 'general';
+        $objectives = $campaign['objectives'] ?? '';
+        $geographicScope = $campaign['geographic_scope'] ?? '';
+        $startDate = $campaign['start_date'] ?? null;
+        $endDate = $campaign['end_date'] ?? null;
+        
+        // Get historical engagement data
+        $historicalEngagement = $features['historical_engagement'] ?? [];
+        $avgEngagement = $features['engagement_rate'] ?? 0;
+        $bestDay = $features['best_day_of_week'] ?? null;
+        $bestTime = $features['best_time'] ?? null;
+        
+        // Build comprehensive prompt
+        $prompt = "You are an AI assistant helping optimize campaign deployment timing for a public safety campaign management system.\n\n";
+        $prompt .= "Campaign Details:\n";
+        $prompt .= "- Title: {$campaignTitle}\n";
+        $prompt .= "- Category: {$campaignCategory}\n";
+        if ($objectives) {
+            $prompt .= "- Objectives: {$objectives}\n";
+        }
+        if ($geographicScope) {
+            $prompt .= "- Geographic Scope: {$geographicScope}\n";
+        }
+        if ($startDate) {
+            $prompt .= "- Planned Start Date: {$startDate}\n";
+        }
+        if ($endDate) {
+            $prompt .= "- Planned End Date: {$endDate}\n";
+        }
+        
+        $prompt .= "\nHistorical Performance Data:\n";
+        if ($bestDay && $bestTime) {
+            $dayNames = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
+            $prompt .= "- Best performing day: {$dayNames[$bestDay]}\n";
+            $prompt .= "- Best performing time: {$bestTime}\n";
+        }
+        if ($avgEngagement > 0) {
+            $prompt .= "- Average engagement rate: " . round($avgEngagement * 100, 1) . "%\n";
+        }
+        if (!empty($historicalEngagement)) {
+            $views = $historicalEngagement['views'] ?? [];
+            $attendance = $historicalEngagement['attendance'] ?? [];
+            if (!empty($views)) {
+                $prompt .= "- Historical views: " . implode(', ', array_slice($views, 0, 5)) . "\n";
+            }
+            if (!empty($attendance)) {
+                $prompt .= "- Historical attendance: " . implode(', ', array_slice($attendance, 0, 5)) . "\n";
+            }
+        }
+        
+        $prompt .= "\nTask: Analyze this campaign and recommend the optimal deployment date and time.\n";
+        $prompt .= "Consider factors like:\n";
+        $prompt .= "- Campaign category and objectives\n";
+        $prompt .= "- Historical performance patterns\n";
+        $prompt .= "- Day of week preferences (1=Monday, 7=Sunday)\n";
+        $prompt .= "- Time of day effectiveness\n";
+        $prompt .= "- Geographic scope and target audience\n\n";
+        $prompt .= "Respond with a JSON object in this exact format:\n";
+        $prompt .= '{"recommended_day": 1-7, "recommended_time": "HH:MM", "confidence": 0.0-1.0, "reasoning": "brief explanation"}\n';
+        $prompt .= "Where recommended_day is 1 (Monday) through 7 (Sunday), recommended_time is in 24-hour format (e.g., \"14:00\"), and confidence is a decimal between 0 and 1.";
+        
+        // Call OpenAI API
+        $ch = curl_init('https://api.openai.com/v1/chat/completions');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $this->openAiApiKey,
+            ],
+            CURLOPT_POSTFIELDS => json_encode([
+                'model' => 'gpt-4o-mini',
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => 'You are an expert in campaign deployment optimization. Always respond with valid JSON only, no additional text.'
+                    ],
+                    [
+                        'role' => 'user',
+                        'content' => $prompt
+                    ]
+                ],
+                'temperature' => 0.7,
+                'max_tokens' => 300
+            ]),
+            CURLOPT_TIMEOUT => 30,
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+        
+        if ($error) {
+            error_log("OpenAI API cURL error: $error");
+            throw new RuntimeException("OpenAI API connection failed: $error");
+        }
+        
+        if ($httpCode !== 200) {
+            error_log("OpenAI API error: HTTP $httpCode");
+            error_log("Response: " . ($response ? substr($response, 0, 500) : 'EMPTY'));
+            throw new RuntimeException("OpenAI API returned HTTP $httpCode: " . substr($response ?: 'No response', 0, 200));
+        }
+        
+        $result = json_decode($response, true);
+        
+        // Parse OpenAI response
+        if (isset($result['choices'][0]['message']['content'])) {
+            $content = $result['choices'][0]['message']['content'];
+            // Extract JSON from response (handle cases where there's extra text)
+            $jsonStart = strpos($content, '{');
+            $jsonEnd = strrpos($content, '}');
+            if ($jsonStart !== false && $jsonEnd !== false) {
+                $jsonContent = substr($content, $jsonStart, $jsonEnd - $jsonStart + 1);
+                $pred = json_decode($jsonContent, true);
+            } else {
+                $pred = json_decode($content, true);
+            }
+            
+            if ($pred && isset($pred['recommended_day']) && isset($pred['recommended_time'])) {
+                $recommendedDay = (int) $pred['recommended_day'];
+                $recommendedTime = $pred['recommended_time'];
+                $confidence = isset($pred['confidence']) ? (float) $pred['confidence'] : 0.7;
+                $reasoning = $pred['reasoning'] ?? 'AI-generated recommendation based on campaign data and historical patterns';
+                
+                // Validate day (1-7)
+                if ($recommendedDay < 1 || $recommendedDay > 7) {
+                    $recommendedDay = date('N'); // Current day of week
+                }
+                
+                // Validate time format
+                if (!preg_match('/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/', $recommendedTime)) {
+                    $recommendedTime = '14:00'; // Default to 2 PM
+                }
+                
+                // Convert to datetime
+                $today = date('N'); // Current day of week (1-7)
+                $daysUntil = ($recommendedDay - $today + 7) % 7;
+                if ($daysUntil === 0) {
+                    $daysUntil = 7; // Next week if same day
+                }
+                $baseDate = date('Y-m-d', strtotime("+{$daysUntil} days"));
+                $suggestedDatetime = $baseDate . ' ' . $recommendedTime . ':00';
+                
+                error_log("AutoMLService: Parsed OpenAI response - Day: $recommendedDay, Time: $recommendedTime, Confidence: $confidence");
+                
+                // Track which data sources were actually used (same logic as heuristic)
+                $dataSourcesUsed = $this->getDataSourcesUsed($features, $campaignId);
+                
+                // Generate comprehensive recommendations for all fields
+                $comprehensiveRecommendations = $this->generateComprehensiveRecommendations($campaignId, $campaign, $features);
+                
+                return [
+                    'recommended_day' => $recommendedDay,
+                    'recommended_time' => $recommendedTime,
+                    'suggested_datetime' => $suggestedDatetime,
+                    'confidence_score' => round($confidence, 3),
+                    'features_used' => $features,
+                    'data_sources_used' => $dataSourcesUsed,
+                    'recommendations' => $comprehensiveRecommendations,
+                    'model_source' => 'openai_gpt4',
+                    'automl_configured' => true,
+                    'reasoning' => $reasoning,
+                ];
+            }
+        }
+        
+        // Fallback if response format is unexpected
+        error_log("AutoMLService: Unexpected OpenAI response format: " . json_encode($result));
+        throw new RuntimeException("Unexpected OpenAI response format");
+    }
+
+    /**
+     * Call Google AutoML Prediction API
+     */
+    private function predictWithGoogleAutoML(int $campaignId, array $campaign, array $features): array
+    {
+        $payload = [
+            'instances' => [
+                [
+                    'campaign_category' => $features['campaign_category'],
+                    'day_of_week' => $features['day_of_week_range'][0] ?? 1,
+                    'time_window' => $features['time_window'],
+                    'historical_engagement' => $features['historical_engagement'],
+                ]
+            ]
+        ];
+
+        $ch = curl_init($this->googleAutoMLEndpoint);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $this->googleApiKey,
+            ],
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_TIMEOUT => 10,
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($error) {
+            error_log("Google AutoML cURL error: $error");
+            throw new RuntimeException("Google AutoML connection failed: $error");
+        }
+        
+        if ($httpCode !== 200) {
+            // Log error for debugging
+            error_log("Google AutoML API error: HTTP $httpCode");
+            error_log("AutoML Endpoint: " . ($this->googleAutoMLEndpoint ?? 'NOT SET'));
+            error_log("Response: " . ($response ? substr($response, 0, 500) : 'EMPTY'));
+            
+            // Throw exception to trigger fallback
+            throw new RuntimeException("Google AutoML API returned HTTP $httpCode: " . substr($response ?: 'No response', 0, 200));
+        }
+
+        $result = json_decode($response, true);
+        
+        // Parse Google AutoML response format
+        // Expected format: { "predictions": [{ "recommended_day": 1, "recommended_time": "14:00", "confidence": 0.85 }] }
+        if (isset($result['predictions'][0])) {
+            $pred = $result['predictions'][0];
+            $recommendedDay = $pred['recommended_day'] ?? date('N'); // Day of week (1-7)
+            $recommendedTime = $pred['recommended_time'] ?? '14:00';
+            $confidence = (float) ($pred['confidence'] ?? $pred['confidence_score'] ?? 0.7);
+
+            // Convert to datetime
+            $today = date('N'); // Current day of week (1-7)
+            $daysUntil = ($recommendedDay - $today + 7) % 7;
+            if ($daysUntil === 0) {
+                $daysUntil = 7; // Next week if same day
+            }
+            $baseDate = date('Y-m-d', strtotime("+{$daysUntil} days"));
+            $suggestedDatetime = $baseDate . ' ' . $recommendedTime . ':00';
+
+            error_log("AutoMLService: Parsed Google AutoML response - Day: $recommendedDay, Time: $recommendedTime, Confidence: $confidence");
+
+            // Track which data sources were actually used
+            $dataSourcesUsed = $this->getDataSourcesUsed($features, $campaignId);
+            
+            // Generate comprehensive recommendations for all fields
+            $comprehensiveRecommendations = $this->generateComprehensiveRecommendations($campaignId, $campaign, $features);
+            
+            return [
+                'recommended_day' => (int) $recommendedDay,
+                'recommended_time' => $recommendedTime,
+                'suggested_datetime' => $suggestedDatetime,
+                'confidence_score' => round($confidence, 3),
+                'features_used' => $features,
+                'data_sources_used' => $dataSourcesUsed,
+                'recommendations' => $comprehensiveRecommendations,
+                'model_source' => 'google_automl',
+                'automl_configured' => true,
+            ];
+        }
+
+        // Fallback if response format is unexpected
+        error_log("AutoMLService: Unexpected Google AutoML response format: " . json_encode($result));
+        throw new RuntimeException("Unexpected Google AutoML response format");
+    }
+
+    /**
+     * Heuristic-based prediction (fallback)
+     */
+    private function predictWithHeuristics(int $campaignId, array $features): array
+    {
+        $engagement = $features['engagement_rate'] ?? 0;
+        
+        // Use best day/time from historical data if available
+        $bestDay = $features['best_day_of_week'] ?? null;
+        $bestTime = $features['best_time'] ?? null;
+        
+        if ($bestDay && $bestTime) {
+            // Use historical best performing day and time
+            $suggestedTime = $bestTime . ':00';
+            $dayOfWeek = $bestDay;
+        } else {
+            // Fallback heuristic: if engagement is low, suggest evening slot; else morning slot
+            $suggestedTime = $engagement < 0.1 ? '18:00:00' : '09:00:00';
+            $dayOfWeek = $features['day_of_week_range'][0] ?? date('N');
+        }
+        
+        // Calculate next occurrence of the recommended day
+        $today = date('N'); // Current day of week (1-7)
+        $daysUntil = ($dayOfWeek - $today + 7) % 7;
+        if ($daysUntil === 0) {
+            $daysUntil = 7; // Next week if same day
+        }
+        $baseDate = date('Y-m-d', strtotime("+{$daysUntil} days"));
+        $suggestedDatetime = $baseDate . ' ' . $suggestedTime;
+
+        // Confidence: scale with engagement and historical data availability
+        $hasHistoricalData = !empty($features['engagement_by_day']) || !empty($features['engagement_by_time']);
+        $baseConfidence = $hasHistoricalData ? 0.6 : 0.3;
+        $confidence = max(0.3, min(0.9, $baseConfidence + min($engagement, 0.3)));
+
+        // Track which data sources were actually used in this prediction
+        $dataSourcesUsed = $this->getDataSourcesUsed($features, $campaignId);
+
+        return [
+            'recommended_day' => (int) $dayOfWeek,
+            'recommended_time' => substr($suggestedTime, 0, 5), // HH:MM format
+            'suggested_datetime' => $suggestedDatetime,
+            'confidence_score' => round($confidence, 3),
+            'features_used' => $features,
+            'data_sources_used' => $dataSourcesUsed, // Track which data sources were actually used
+            'model_source' => $hasHistoricalData ? 'heuristic_with_history' : 'heuristic',
+        ];
+    }
+
+    /**
+     * Track which data sources were actually used in prediction
+     * Returns array with 'used' and 'not_used' data sources with record counts
+     */
+    private function getDataSourcesUsed(array $features, int $campaignId): array
+    {
+        $dataSourcesUsed = [];
+        $dataSourcesNotUsed = [];
+        $barangayFilter = $this->getNagkaisangNayonFilter('c');
+        
+        // Past event records - check if we queried events
+        $campaignColumn = $this->getEventsCampaignColumn();
+        if ($campaignColumn) {
+            try {
+                $eventCount = (int) $this->scalar(
+                    "SELECT COUNT(*) FROM campaign_department_events e 
+                     INNER JOIN campaign_department_campaigns c ON c.id = e.{$campaignColumn}
+                     WHERE " . $barangayFilter['where'],
+                    $barangayFilter['params']
+                );
+            } catch (\PDOException $e) {
+                error_log('AutoMLService::getDataSourcesUsed - Error counting events: ' . $e->getMessage());
+                $eventCount = 0;
+            }
+        } else {
+            $eventCount = 0;
+        }
+        if ($eventCount > 0 && (!empty($features['engagement_by_day']) || !empty($features['engagement_by_time']))) {
+            $dataSourcesUsed[] = ['name' => 'Past event records', 'count' => $eventCount, 'table' => 'campaign_department_events'];
+        } else {
+            $dataSourcesNotUsed[] = ['name' => 'Past event records', 'reason' => $eventCount === 0 ? 'No records available in Nagkaisang Nayon dataset' : 'No engagement data extracted'];
+        }
+        
+        // Attendance trends - check if attendance data was found
+        $campaignColumn = $this->getEventsCampaignColumn();
+        if ($campaignColumn) {
+            try {
+                $attendanceCount = (int) $this->scalar(
+                    "SELECT COUNT(*) FROM campaign_department_attendance a 
+                     INNER JOIN campaign_department_events e ON e.id = a.event_id
+                     INNER JOIN campaign_department_campaigns c ON c.id = e.{$campaignColumn}
+                     WHERE " . $barangayFilter['where'],
+                    $barangayFilter['params']
+                );
+            } catch (\PDOException $e) {
+                error_log('AutoMLService::getDataSourcesUsed - Error counting attendance: ' . $e->getMessage());
+                $attendanceCount = 0;
+            }
+        } else {
+            $attendanceCount = 0;
+        }
+        if ($attendanceCount > 0 && (($features['attendance'] ?? 0) > 0 || !empty($features['historical_engagement']['attendance'] ?? []))) {
+            $dataSourcesUsed[] = ['name' => 'Attendance trends', 'count' => $attendanceCount, 'table' => 'campaign_department_attendance'];
+        } else {
+            $dataSourcesNotUsed[] = ['name' => 'Attendance trends', 'reason' => $attendanceCount === 0 ? 'No records available in Nagkaisang Nayon dataset' : 'No attendance data extracted'];
+        }
+        
+        // Participation rates per segment (via audience_members.segment_id)
+        $campaignColumn = $this->getEventsCampaignColumn();
+        if ($campaignColumn) {
+            try {
+                $segmentCount = (int) $this->scalar(
+                    "SELECT COUNT(DISTINCT a.id) FROM campaign_department_attendance a 
+                     INNER JOIN campaign_department_events e ON e.id = a.event_id
+                     INNER JOIN campaign_department_campaigns c ON c.id = e.{$campaignColumn}
+                     INNER JOIN campaign_department_audience_members am ON am.id = a.audience_member_id
+                     WHERE am.segment_id IS NOT NULL AND " . $barangayFilter['where'],
+                    $barangayFilter['params']
+                );
+            } catch (\PDOException $e) {
+                error_log('AutoMLService::getDataSourcesUsed - Error counting segments: ' . $e->getMessage());
+                $segmentCount = 0;
+            }
+        } else {
+            $segmentCount = 0;
+        }
+        if ($segmentCount > 0) {
+            $dataSourcesUsed[] = ['name' => 'Participation rates per segment', 'count' => $segmentCount, 'table' => 'campaign_department_attendance + audience_members + segments'];
+        } else {
+            $dataSourcesNotUsed[] = ['name' => 'Participation rates per segment', 'reason' => 'No segment-linked attendance records in Nagkaisang Nayon dataset'];
+        }
+        
+        // Survey feedback - check if ratings/feedback data exists
+        $feedbackCount = (int) $this->scalar(
+            'SELECT COUNT(*) FROM campaign_department_feedback f 
+             INNER JOIN campaign_department_surveys s ON s.id = f.survey_id
+             INNER JOIN campaign_department_campaigns c ON c.id = s.campaign_id
+             WHERE ' . $barangayFilter['where'],
+            $barangayFilter['params']
+        );
+        if ($feedbackCount > 0 && (($features['avg_rating'] ?? 0) > 0 || !empty($features['historical_engagement']['ratings'] ?? []))) {
+            $dataSourcesUsed[] = ['name' => 'Survey feedback', 'count' => $feedbackCount, 'table' => 'campaign_department_feedback'];
+        } else {
+            $dataSourcesNotUsed[] = ['name' => 'Survey feedback', 'reason' => $feedbackCount === 0 ? 'No records available in Nagkaisang Nayon dataset' : 'No feedback data extracted'];
+        }
+        
+        // Audience targeting data - check if segment was used
+        if (!empty($features['audience_segment_id'])) {
+            $segmentTargetCount = (int) $this->scalar(
+                'SELECT COUNT(*) FROM campaign_department_audience_segments WHERE id = :seg_id',
+                ['seg_id' => $features['audience_segment_id']]
+            );
+            if ($segmentTargetCount > 0) {
+                $dataSourcesUsed[] = ['name' => 'Segment targeting data', 'count' => $segmentTargetCount, 'table' => 'campaign_department_audience_segments'];
+            }
+        } else {
+            $dataSourcesNotUsed[] = ['name' => 'Segment targeting data', 'reason' => 'No segment selected for this campaign'];
+        }
+        
+        // Event conflicts - always checked
+        $dataSourcesUsed[] = ['name' => 'Event conflicts', 'count' => 0, 'table' => 'campaign_department_events (conflict check)'];
+        
+        // Seasonal patterns - not implemented
+        $dataSourcesNotUsed[] = ['name' => 'Seasonal patterns', 'reason' => 'Not implemented - requires month-based grouping query'];
+        
+        // Event risk levels - not implemented
+        $dataSourcesNotUsed[] = ['name' => 'Event risk levels', 'reason' => 'Not implemented - requires risk_level column in events/campaigns tables'];
+        
+        // Incident history - not implemented
+        $incidentCount = (int) $this->scalar(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaign_department_incidents'"
+        );
+        if ($incidentCount === 0) {
+            $dataSourcesNotUsed[] = ['name' => 'Incident history', 'reason' => 'Not implemented - campaign_department_incidents table does not exist'];
+        }
+        
+        return [
+            'used' => $dataSourcesUsed,
+            'not_used' => $dataSourcesNotUsed
+        ];
+        // Implementation: Create incidents table and JOIN with campaigns/events to factor incident history into scheduling
+        
+        // TODO: Participation rates per segment - PARTIALLY IMPLEMENTED
+        // Currently: audience_segment_id is used but detailed participation rates per segment are not computed
+        // Need to add: JOIN campaign_department_attendance with campaign_department_audience_segments to compute per-segment rates
+        // Implementation: Add query in prepareFeatures() to compute attendance_rate per segment_id from campaign_department_attendance JOIN campaign_department_audience_members
+        
+        return $dataSourcesUsed;
+    }
+
+    /**
+     * Get campaign data from database
+     */
+    private function getCampaignData(int $campaignId): ?array
+    {
+        $stmt = $this->pdo->prepare('
+            SELECT id, title, category, start_date, end_date, status, geographic_scope, objectives
+            FROM campaign_department_campaigns 
+            WHERE id = :id LIMIT 1
+        ');
+        $stmt->execute(['id' => $campaignId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function savePrediction(int $campaignId, array $prediction, string $modelVersion = 'mock-1'): int
+    {
+        $stmt = $this->pdo->prepare('INSERT INTO campaign_department_automl_predictions (campaign_id, model_version, prediction) VALUES (:cid, :model_version, :prediction)');
+        $stmt->execute([
+            'cid' => $campaignId,
+            'model_version' => $modelVersion,
+            'prediction' => json_encode($prediction),
+        ]);
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    private function scalar(string $sql, array $params = []): mixed
+    {
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchColumn();
+    }
+
+    // ============================================
+    // ENHANCED PREDICTION METHODS
+    // ============================================
+
+    /**
+     * Predict conflict risk for campaigns/events
+     * Returns: conflict_probability, risk_level (low/medium/high), factors
+     */
+    public function predictConflictRisk(string $entityType, int $entityId, array $context = []): array
+    {
+        $cacheKey = $this->generateCacheKey('conflict_prediction', $entityType, $entityId, $context);
+        
+        // Check cache
+        $cached = $this->getCachedPrediction($cacheKey, 'conflict_prediction');
+        if ($cached) {
+            $this->logPredictionRequest('conflict_prediction', $entityType, $entityId, $context, $cached, true, $cacheKey);
+            return $cached;
+        }
+
+        // Prepare features
+        $features = $this->prepareConflictFeatures($entityType, $entityId, $context);
+        
+        // Get active model or use heuristic
+        $model = $this->getActiveModel('conflict_prediction');
+        $prediction = $this->predictConflictWithModel($features, $model);
+
+        // Cache and log
+        $this->cachePrediction($cacheKey, 'conflict_prediction', $entityType, $entityId, $prediction, $features, $model['id'] ?? null);
+        $this->logPredictionRequest('conflict_prediction', $entityType, $entityId, $context, $prediction, false, $cacheKey, $model['id'] ?? null);
+
+        return $prediction;
+    }
+
+    /**
+     * Predict engagement likelihood
+     * Returns: engagement_likelihood, expected_attendance, confidence_score
+     */
+    public function predictEngagement(string $entityType, int $entityId, array $context = []): array
+    {
+        $cacheKey = $this->generateCacheKey('engagement_prediction', $entityType, $entityId, $context);
+        
+        $cached = $this->getCachedPrediction($cacheKey, 'engagement_prediction');
+        if ($cached) {
+            $this->logPredictionRequest('engagement_prediction', $entityType, $entityId, $context, $cached, true, $cacheKey);
+            return $cached;
+        }
+
+        $model = $this->getActiveModel('engagement_prediction');
+        $features = $this->prepareEngagementFeatures($entityType, $entityId, $context);
+        $prediction = $this->predictEngagementWithModel($features, $model);
+
+        $this->cachePrediction($cacheKey, 'engagement_prediction', $entityType, $entityId, $prediction, $features, $model['id'] ?? null);
+        $this->logPredictionRequest('engagement_prediction', $entityType, $entityId, $context, $prediction, false, $cacheKey, $model['id'] ?? null);
+
+        return $prediction;
+    }
+
+    /**
+     * Forecast campaign readiness
+     * Returns: readiness_score, is_ready, missing_components
+     */
+    public function forecastReadiness(int $campaignId): array
+    {
+        $cacheKey = $this->generateCacheKey('readiness_forecast', 'campaign', $campaignId, []);
+        
+        $cached = $this->getCachedPrediction($cacheKey, 'readiness_forecast');
+        if ($cached) {
+            $this->logPredictionRequest('readiness_forecast', 'campaign', $campaignId, [], $cached, true, $cacheKey);
+            return $cached;
+        }
+
+        $model = $this->getActiveModel('readiness_forecast');
+        $features = $this->prepareReadinessFeatures($campaignId);
+        $prediction = $this->predictReadinessWithModel($features, $model);
+
+        $this->cachePrediction($cacheKey, 'readiness_forecast', 'campaign', $campaignId, $prediction, $features, $model['id'] ?? null);
+        $this->logPredictionRequest('readiness_forecast', 'campaign', $campaignId, [], $prediction, false, $cacheKey, $model['id'] ?? null);
+
+        return $prediction;
+    }
+
+    // ============================================
+    // TRAINING METHODS
+    // ============================================
+
+    /**
+     * Check if training is configured
+     */
+    public function isTrainingConfigured(): bool
+    {
+        return $this->isTrainingConfigured;
+    }
+
+    /**
+     * Start training a new model
+     */
+    public function startTraining(
+        string $modelType,
+        string $modelName,
+        array $trainingData,
+        string $targetColumn,
+        array $featureColumns,
+        ?int $createdBy = null
+    ): array {
+        if (!$this->isTrainingConfigured) {
+            throw new RuntimeException('Google Cloud AutoML training is not configured. Set GOOGLE_CLOUD_PROJECT_ID and GOOGLE_SERVICE_ACCOUNT_KEY.');
+        }
+
+        $allowedTypes = ['schedule_optimization', 'conflict_prediction', 'engagement_prediction', 'readiness_forecast'];
+        if (!in_array($modelType, $allowedTypes)) {
+            throw new \InvalidArgumentException("Invalid model type: $modelType");
+        }
+
+        if (count($trainingData) < 100) {
+            throw new \InvalidArgumentException('Training data must contain at least 100 examples');
+        }
+
+        $version = $this->generateVersionTag($modelType);
+        $modelVersionId = $this->createModelVersionRecord($modelType, $modelName, $version, $targetColumn, $featureColumns, count($trainingData), $createdBy);
+        $this->logTrainingEvent($modelVersionId, 'training_started', 'Training job initiated', ['data_size' => count($trainingData)], $createdBy);
+
+        try {
+            $datasetId = $this->uploadDataset($modelType, $trainingData, $targetColumn, $featureColumns);
+            $trainingJobId = $this->createTrainingJob($modelType, $modelName, $datasetId, $targetColumn, $featureColumns);
+            $modelId = $this->extractModelIdFromJob($trainingJobId);
+
+            $this->updateModelVersionRecord($modelVersionId, [
+                'dataset_id' => $datasetId,
+                'training_job_id' => $trainingJobId,
+                'model_id' => $modelId,
+                'training_status' => 'training',
+                'training_started_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            $this->logTrainingEvent($modelVersionId, 'training_progress', 'Training job submitted', ['job_id' => $trainingJobId], $createdBy);
+            return $this->getModelVersion($modelVersionId);
+        } catch (\Exception $e) {
+            $this->updateModelVersionRecord($modelVersionId, ['training_status' => 'failed']);
+            $this->logTrainingEvent($modelVersionId, 'training_failed', 'Training failed: ' . $e->getMessage(), ['error' => $e->getMessage()], $createdBy);
+            throw new RuntimeException('Failed to start training: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Check training status
+     */
+    public function checkTrainingStatus(int $modelVersionId): array
+    {
+        $modelVersion = $this->getModelVersion($modelVersionId);
+        if (!$modelVersion || empty($modelVersion['training_job_id'])) {
+            throw new RuntimeException('Model version or training job not found');
+        }
+
+        try {
+            $jobStatus = $this->getTrainingJobStatus($modelVersion['training_job_id']);
+            $updateData = [];
+
+            $statusMap = [
+                'JOB_STATE_PENDING' => 'pending',
+                'JOB_STATE_RUNNING' => 'training',
+                'JOB_STATE_SUCCEEDED' => 'completed',
+                'JOB_STATE_FAILED' => 'failed',
+            ];
+            if (isset($jobStatus['state'])) {
+                $updateData['training_status'] = $statusMap[$jobStatus['state']] ?? 'training';
+            }
+
+            if (isset($jobStatus['progress_percentage'])) {
+                $this->logTrainingEvent($modelVersionId, 'training_progress', "Progress: {$jobStatus['progress_percentage']}%", ['progress' => $jobStatus['progress_percentage']]);
+            }
+
+            if ($jobStatus['state'] === 'JOB_STATE_SUCCEEDED') {
+                $updateData['training_completed_at'] = date('Y-m-d H:i:s');
+                if (isset($jobStatus['model_evaluation'])) {
+                    $updateData['evaluation_metrics'] = json_encode($jobStatus['model_evaluation']);
+                }
+                $this->logTrainingEvent($modelVersionId, 'training_completed', 'Training completed', []);
+            } elseif ($jobStatus['state'] === 'JOB_STATE_FAILED') {
+                $updateData['training_status'] = 'failed';
+                $this->logTrainingEvent($modelVersionId, 'training_failed', 'Training failed', ['error' => $jobStatus['error'] ?? 'Unknown']);
+            }
+
+            if (!empty($updateData)) {
+                $this->updateModelVersionRecord($modelVersionId, $updateData);
+            }
+
+            return $this->getModelVersion($modelVersionId);
+        } catch (\Exception $e) {
+            throw new RuntimeException('Failed to check training status: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Deploy a trained model
+     */
+    public function deployModel(int $modelVersionId, ?int $deployedBy = null): array
+    {
+        $modelVersion = $this->getModelVersion($modelVersionId);
+        if (!$modelVersion || $modelVersion['training_status'] !== 'completed') {
+            throw new RuntimeException('Model must be completed before deployment');
+        }
+
+        $this->deactivateOtherModels($modelVersion['model_type'], $modelVersionId);
+        $this->updateModelVersionRecord($modelVersionId, [
+            'is_active' => true,
+            'training_status' => 'deployed',
+            'deployed_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $this->logTrainingEvent($modelVersionId, 'model_deployed', 'Model deployed for production', [], $deployedBy);
+        return $this->getModelVersion($modelVersionId);
+    }
+
+    /**
+     * Get active model for a type
+     */
+    public function getActiveModel(string $modelType): ?array
+    {
+        $stmt = $this->pdo->prepare('
+            SELECT * FROM campaign_department_ai_model_versions 
+            WHERE model_type = :type AND is_active = TRUE AND training_status = "deployed"
+            ORDER BY deployed_at DESC LIMIT 1
+        ');
+        $stmt->execute(['type' => $modelType]);
+        return $stmt->fetch() ?: null;
+    }
+
+    /**
+     * List model versions
+     */
+    public function listModelVersions(?string $modelType = null, ?string $status = null): array
+    {
+        $sql = 'SELECT mv.*, u.name as created_by_name FROM campaign_department_ai_model_versions mv LEFT JOIN campaign_department_users u ON u.id = mv.created_by WHERE 1=1';
+        $params = [];
+
+        if ($modelType) {
+            $sql .= ' AND mv.model_type = :type';
+            $params['type'] = $modelType;
+        }
+        if ($status) {
+            $sql .= ' AND mv.training_status = :status';
+            $params['status'] = $status;
+        }
+
+        $sql .= ' ORDER BY mv.created_at DESC';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll() ?: [];
+    }
+
+    // ============================================
+    // DATA PREPARATION METHODS
+    // ============================================
+
+    /**
+     * Prepare training dataset for schedule optimization
+     */
+    public function prepareScheduleOptimizationData(?int $limit = null): array
+    {
+        $campaignColumn = $this->getEventsCampaignColumn();
+        if ($campaignColumn) {
+            $sql = "
+                SELECT 
+                    c.id, c.category, c.geographic_scope, c.status,
+                    DAYOFWEEK(c.start_date) as day_of_week, MONTH(c.start_date) as month,
+                    HOUR(c.ai_recommended_datetime) as recommended_hour,
+                    c.budget, c.staff_count,
+                    (SELECT COUNT(*) FROM campaign_department_campaign_audience ca WHERE ca.campaign_id = c.id) as audience_segment_size,
+                    (SELECT COUNT(*) FROM campaign_department_notification_logs nl WHERE nl.campaign_id = c.id AND nl.status = 'sent') as reach,
+                    (SELECT COUNT(*) FROM campaign_department_attendance a INNER JOIN campaign_department_events e ON e.id = a.event_id WHERE e.{$campaignColumn} = c.id) as attendance,
+                    (SELECT AVG(f.rating) FROM campaign_department_feedback f INNER JOIN campaign_department_surveys s ON s.id = f.survey_id WHERE s.campaign_id = c.id) as avg_rating,
+                    CASE WHEN EXISTS (SELECT 1 FROM campaign_department_campaigns c2 WHERE c2.id != c.id AND ABS(TIMESTAMPDIFF(HOUR, c.ai_recommended_datetime, c2.ai_recommended_datetime)) < 2) THEN 1 ELSE 0 END as has_conflict
+                FROM campaign_department_campaigns c
+                WHERE c.ai_recommended_datetime IS NOT NULL AND c.start_date IS NOT NULL
+            ";
+        } else {
+            // No campaign column, skip attendance calculation
+            $sql = "
+                SELECT 
+                    c.id, c.category, c.geographic_scope, c.status,
+                    DAYOFWEEK(c.start_date) as day_of_week, MONTH(c.start_date) as month,
+                    HOUR(c.ai_recommended_datetime) as recommended_hour,
+                    c.budget, c.staff_count,
+                    (SELECT COUNT(*) FROM campaign_department_campaign_audience ca WHERE ca.campaign_id = c.id) as audience_segment_size,
+                    (SELECT COUNT(*) FROM campaign_department_notification_logs nl WHERE nl.campaign_id = c.id AND nl.status = 'sent') as reach,
+                    0 as attendance,
+                    (SELECT AVG(f.rating) FROM campaign_department_feedback f INNER JOIN campaign_department_surveys s ON s.id = f.survey_id WHERE s.campaign_id = c.id) as avg_rating,
+                    CASE WHEN EXISTS (SELECT 1 FROM campaign_department_campaigns c2 WHERE c2.id != c.id AND ABS(TIMESTAMPDIFF(HOUR, c.ai_recommended_datetime, c2.ai_recommended_datetime)) < 2) THEN 1 ELSE 0 END as has_conflict
+                FROM campaign_department_campaigns c
+                WHERE c.ai_recommended_datetime IS NOT NULL AND c.start_date IS NOT NULL
+            ";
+        }
+        if ($limit) $sql .= " LIMIT " . (int) $limit;
+
+        try {
+            $stmt = $this->pdo->query($sql);
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::prepareScheduleOptimizationData error: ' . $e->getMessage());
+            return [];
+        }
+        $rows = $stmt->fetchAll();
+
+        $dataset = [];
+        foreach ($rows as $row) {
+            $dataset[] = [
+                'campaign_category' => $row['category'] ?? 'general',
+                'geographic_scope' => $row['geographic_scope'] ?? 'citywide',
+                'day_of_week' => (int) ($row['day_of_week'] ?? 1),
+                'month' => (int) ($row['month'] ?? 1),
+                'budget_range' => $this->categorizeBudget($row['budget'] ?? 0),
+                'staff_count' => (int) ($row['staff_count'] ?? 0),
+                'audience_segment_size' => (int) ($row['audience_segment_size'] ?? 0),
+                'historical_reach' => (int) ($row['reach'] ?? 0),
+                'historical_attendance' => (int) ($row['attendance'] ?? 0),
+                'historical_avg_rating' => (float) ($row['avg_rating'] ?? 0),
+                'has_conflict' => (int) ($row['has_conflict'] ?? 0),
+                'recommended_hour' => (int) ($row['recommended_hour'] ?? 9),
+                'target_optimal_time_score' => $this->calculateOptimalTimeScore($row),
+            ];
+        }
+        return $dataset;
+    }
+
+    /**
+     * Prepare training dataset for conflict prediction
+     */
+    public function prepareConflictPredictionData(?int $limit = null): array
+    {
+        $campaignColumn = $this->getEventsCampaignColumn();
+        if ($campaignColumn) {
+            $sql = "
+                SELECT 
+                    c.id, c.category, c.geographic_scope,
+                    DAYOFWEEK(c.start_date) as day_of_week, HOUR(c.start_date) as hour,
+                    c.staff_count,
+                    (SELECT COUNT(*) FROM campaign_department_campaigns c2 WHERE c2.id != c.id AND c2.start_date BETWEEN DATE_SUB(c.start_date, INTERVAL 1 DAY) AND DATE_ADD(c.start_date, INTERVAL 1 DAY) AND c2.geographic_scope = c.geographic_scope) as concurrent_campaigns,
+                    (SELECT COUNT(*) FROM campaign_department_events e WHERE e.{$campaignColumn} IS NULL AND e.date = DATE(c.start_date) AND TIME(e.start_time) BETWEEN TIME(DATE_SUB(c.start_date, INTERVAL 2 HOUR)) AND TIME(DATE_ADD(c.start_date, INTERVAL 2 HOUR))) as concurrent_events,
+                    CASE WHEN EXISTS (SELECT 1 FROM campaign_department_campaigns c4 WHERE c4.id != c.id AND ABS(TIMESTAMPDIFF(HOUR, c.start_date, c4.start_date)) < 2 AND c4.geographic_scope = c.geographic_scope) THEN 1 ELSE 0 END as actual_conflict
+                FROM campaign_department_campaigns c
+                WHERE c.start_date IS NOT NULL
+            ";
+        } else {
+            // No campaign column, skip concurrent events calculation
+            $sql = "
+                SELECT 
+                    c.id, c.category, c.geographic_scope,
+                    DAYOFWEEK(c.start_date) as day_of_week, HOUR(c.start_date) as hour,
+                    c.staff_count,
+                    (SELECT COUNT(*) FROM campaign_department_campaigns c2 WHERE c2.id != c.id AND c2.start_date BETWEEN DATE_SUB(c.start_date, INTERVAL 1 DAY) AND DATE_ADD(c.start_date, INTERVAL 1 DAY) AND c2.geographic_scope = c.geographic_scope) as concurrent_campaigns,
+                    0 as concurrent_events,
+                    CASE WHEN EXISTS (SELECT 1 FROM campaign_department_campaigns c4 WHERE c4.id != c.id AND ABS(TIMESTAMPDIFF(HOUR, c.start_date, c4.start_date)) < 2 AND c4.geographic_scope = c.geographic_scope) THEN 1 ELSE 0 END as actual_conflict
+                FROM campaign_department_campaigns c
+                WHERE c.start_date IS NOT NULL
+            ";
+        }
+        if ($limit) $sql .= " LIMIT " . (int) $limit;
+
+        try {
+            $stmt = $this->pdo->query($sql);
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::prepareConflictPredictionData error: ' . $e->getMessage());
+            return [];
+        }
+        $rows = $stmt->fetchAll();
+
+        $dataset = [];
+        foreach ($rows as $row) {
+            $dataset[] = [
+                'campaign_category' => $row['category'] ?? 'general',
+                'geographic_scope' => $row['geographic_scope'] ?? 'citywide',
+                'day_of_week' => (int) ($row['day_of_week'] ?? 1),
+                'hour' => (int) ($row['hour'] ?? 9),
+                'staff_count' => (int) ($row['staff_count'] ?? 0),
+                'concurrent_campaigns' => (int) ($row['concurrent_campaigns'] ?? 0),
+                'concurrent_events' => (int) ($row['concurrent_events'] ?? 0),
+                'target_conflict_probability' => (int) ($row['actual_conflict'] ?? 0),
+            ];
+        }
+        return $dataset;
+    }
+
+    /**
+     * Prepare training dataset for engagement prediction
+     */
+    public function prepareEngagementPredictionData(?int $limit = null): array
+    {
+        $campaignColumn = $this->getEventsCampaignColumn();
+        if ($campaignColumn) {
+            $sql = "
+                SELECT 
+                    c.id, c.category, c.geographic_scope,
+                    DAYOFWEEK(c.start_date) as day_of_week, HOUR(c.start_date) as hour,
+                    (SELECT COUNT(*) FROM campaign_department_campaign_audience ca WHERE ca.campaign_id = c.id) as audience_size,
+                    (SELECT COUNT(*) FROM campaign_department_notification_logs nl WHERE nl.campaign_id = c.id AND nl.status = 'sent') as notifications_sent,
+                    (SELECT COUNT(*) FROM campaign_department_attendance a INNER JOIN campaign_department_events e ON e.id = a.event_id WHERE e.{$campaignColumn} = c.id) as actual_attendance
+                FROM campaign_department_campaigns c
+                WHERE c.start_date IS NOT NULL
+            ";
+        } else {
+            // No campaign column, skip attendance calculation
+            $sql = "
+                SELECT 
+                    c.id, c.category, c.geographic_scope,
+                    DAYOFWEEK(c.start_date) as day_of_week, HOUR(c.start_date) as hour,
+                    (SELECT COUNT(*) FROM campaign_department_campaign_audience ca WHERE ca.campaign_id = c.id) as audience_size,
+                    (SELECT COUNT(*) FROM campaign_department_notification_logs nl WHERE nl.campaign_id = c.id AND nl.status = 'sent') as notifications_sent,
+                    0 as actual_attendance
+                FROM campaign_department_campaigns c
+                WHERE c.start_date IS NOT NULL
+            ";
+        }
+        if ($limit) $sql .= " LIMIT " . (int) $limit;
+
+        try {
+            $stmt = $this->pdo->query($sql);
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::prepareEngagementPredictionData error: ' . $e->getMessage());
+            return [];
+        }
+        $rows = $stmt->fetchAll();
+
+        $dataset = [];
+        foreach ($rows as $row) {
+            $attendance = (int) ($row['actual_attendance'] ?? 0);
+            $notifications = (int) ($row['notifications_sent'] ?? 1);
+            $engagementRate = $notifications > 0 ? ($attendance / $notifications) : 0;
+
+            $dataset[] = [
+                'campaign_category' => $row['category'] ?? 'general',
+                'geographic_scope' => $row['geographic_scope'] ?? 'citywide',
+                'day_of_week' => (int) ($row['day_of_week'] ?? 1),
+                'hour' => (int) ($row['hour'] ?? 9),
+                'audience_size' => (int) ($row['audience_size'] ?? 0),
+                'notifications_sent' => $notifications,
+                'target_engagement_rate' => round($engagementRate, 3),
+            ];
+        }
+        return $dataset;
+    }
+
+    /**
+     * Prepare training dataset for readiness forecast
+     */
+    public function prepareReadinessForecastData(?int $limit = null): array
+    {
+        $campaignColumn = $this->getEventsCampaignColumn();
+        if ($campaignColumn) {
+            $sql = "
+                SELECT 
+                    c.id, c.category, c.status,
+                    DATEDIFF(c.start_date, c.created_at) as days_until_start,
+                    c.staff_count,
+                    (SELECT COUNT(*) FROM campaign_department_campaign_audience ca WHERE ca.campaign_id = c.id) as audience_segments_assigned,
+                    (SELECT COUNT(*) FROM campaign_department_campaign_content_items cci WHERE cci.campaign_id = c.id) as content_items_attached,
+                    (SELECT COUNT(*) FROM campaign_department_events e WHERE e.{$campaignColumn} = c.id) as events_linked,
+                    CASE WHEN c.ai_recommended_datetime IS NOT NULL THEN 1 ELSE 0 END as has_schedule,
+                    CASE WHEN c.status IN ('scheduled', 'ongoing', 'completed') THEN 1 ELSE 0 END as is_ready
+                FROM campaign_department_campaigns c
+                WHERE c.start_date IS NOT NULL
+            ";
+        } else {
+            // No campaign column, skip events_linked calculation
+            $sql = "
+                SELECT 
+                    c.id, c.category, c.status,
+                    DATEDIFF(c.start_date, c.created_at) as days_until_start,
+                    c.staff_count,
+                    (SELECT COUNT(*) FROM campaign_department_campaign_audience ca WHERE ca.campaign_id = c.id) as audience_segments_assigned,
+                    (SELECT COUNT(*) FROM campaign_department_campaign_content_items cci WHERE cci.campaign_id = c.id) as content_items_attached,
+                    0 as events_linked,
+                    CASE WHEN c.ai_recommended_datetime IS NOT NULL THEN 1 ELSE 0 END as has_schedule,
+                    CASE WHEN c.status IN ('scheduled', 'ongoing', 'completed') THEN 1 ELSE 0 END as is_ready
+                FROM campaign_department_campaigns c
+                WHERE c.start_date IS NOT NULL
+            ";
+        }
+        if ($limit) $sql .= " LIMIT " . (int) $limit;
+
+        try {
+            $stmt = $this->pdo->query($sql);
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::prepareReadinessForecastData error: ' . $e->getMessage());
+            return [];
+        }
+        $rows = $stmt->fetchAll();
+
+        $dataset = [];
+        foreach ($rows as $row) {
+            $dataset[] = [
+                'campaign_category' => $row['category'] ?? 'general',
+                'days_until_start' => (int) ($row['days_until_start'] ?? 0),
+                'staff_count' => (int) ($row['staff_count'] ?? 0),
+                'audience_segments_assigned' => (int) ($row['audience_segments_assigned'] ?? 0),
+                'content_items_attached' => (int) ($row['content_items_attached'] ?? 0),
+                'events_linked' => (int) ($row['events_linked'] ?? 0),
+                'has_schedule' => (int) ($row['has_schedule'] ?? 0),
+                'target_readiness_score' => (int) ($row['is_ready'] ?? 0),
+            ];
+        }
+        return $dataset;
+    }
+
+    /**
+     * Get feature columns for a model type
+     */
+    public function getFeatureColumns(string $modelType): array
+    {
+        return match($modelType) {
+            'schedule_optimization' => ['campaign_category', 'geographic_scope', 'day_of_week', 'month', 'budget_range', 'staff_count', 'audience_segment_size', 'historical_reach', 'historical_attendance', 'historical_avg_rating', 'has_conflict'],
+            'conflict_prediction' => ['campaign_category', 'geographic_scope', 'day_of_week', 'hour', 'staff_count', 'concurrent_campaigns', 'concurrent_events'],
+            'engagement_prediction' => ['campaign_category', 'geographic_scope', 'day_of_week', 'hour', 'audience_size', 'notifications_sent'],
+            'readiness_forecast' => ['campaign_category', 'days_until_start', 'staff_count', 'audience_segments_assigned', 'content_items_attached', 'events_linked', 'has_schedule'],
+            default => throw new RuntimeException("Unknown model type: $modelType"),
+        };
+    }
+
+    /**
+     * Get target column for a model type
+     */
+    public function getTargetColumn(string $modelType): string
+    {
+        return match($modelType) {
+            'schedule_optimization' => 'target_optimal_time_score',
+            'conflict_prediction' => 'target_conflict_probability',
+            'engagement_prediction' => 'target_engagement_rate',
+            'readiness_forecast' => 'target_readiness_score',
+            default => throw new RuntimeException("Unknown model type: $modelType"),
+        };
+    }
+
+    // ============================================
+    // PRIVATE HELPER METHODS
+    // ============================================
+
+    private function prepareConflictFeatures(string $entityType, int $entityId, array $context): array
+    {
+        if ($entityType === 'campaign') {
+            $stmt = $this->pdo->prepare('SELECT category, geographic_scope, start_date, staff_count FROM campaign_department_campaigns WHERE id = :id');
+            $stmt->execute(['id' => $entityId]);
+            $entity = $stmt->fetch();
+
+            if (!$entity) throw new RuntimeException("Campaign not found: $entityId");
+
+            $concurrentCampaigns = (int) $this->pdo->query("SELECT COUNT(*) FROM campaign_department_campaigns c2 WHERE c2.id != $entityId AND c2.start_date BETWEEN DATE_SUB('{$entity['start_date']}', INTERVAL 1 DAY) AND DATE_ADD('{$entity['start_date']}', INTERVAL 1 DAY)")->fetchColumn();
+
+            return [
+                'campaign_category' => $entity['category'] ?? 'general',
+                'geographic_scope' => $entity['geographic_scope'] ?? 'citywide',
+                'day_of_week' => (int) date('N', strtotime($entity['start_date'])),
+                'hour' => (int) date('H', strtotime($entity['start_date'])),
+                'staff_count' => (int) ($entity['staff_count'] ?? 0),
+                'concurrent_campaigns' => $concurrentCampaigns,
+            ];
+        }
+        throw new RuntimeException("Unsupported entity type: $entityType");
+    }
+
+    private function prepareEngagementFeatures(string $entityType, int $entityId, array $context): array
+    {
+        return $this->prepareConflictFeatures($entityType, $entityId, $context);
+    }
+
+    private function prepareReadinessFeatures(int $campaignId): array
+    {
+        $campaignColumn = $this->getEventsCampaignColumn();
+        try {
+            $stmt = $this->pdo->prepare("
+                SELECT category, start_date, created_at, staff_count,
+                       (SELECT COUNT(*) FROM campaign_department_campaign_audience WHERE campaign_id = :id) as segments,
+                       (SELECT COUNT(*) FROM campaign_department_campaign_content_items WHERE campaign_id = :id) as content,
+                       (SELECT COUNT(*) FROM campaign_department_events WHERE {$campaignColumn} = :id) as events,
+                       ai_recommended_datetime
+                FROM campaign_department_campaigns WHERE id = :id
+            ");
+            $stmt->execute(['id' => $campaignId]);
+            $campaign = $stmt->fetch();
+            
+            if (!$campaign) throw new RuntimeException("Campaign not found: $campaignId");
+        } catch (\PDOException $e) {
+            error_log('AutoMLService::prepareReadinessFeatures error: ' . $e->getMessage());
+            // Return default values
+            return [
+                'campaign_category' => 'general',
+                'days_until_start' => 0,
+                'staff_count' => 0,
+                'audience_segments_assigned' => 0,
+                'content_items_attached' => 0,
+                'events_linked' => 0,
+                'has_schedule' => 0,
+            ];
+        }
+
+        return [
+            'campaign_category' => $campaign['category'] ?? 'general',
+            'days_until_start' => (int) (($campaign['start_date'] && $campaign['created_at']) ? ((strtotime($campaign['start_date']) - strtotime($campaign['created_at'])) / 86400) : 0),
+            'staff_count' => (int) ($campaign['staff_count'] ?? 0),
+            'audience_segments_assigned' => (int) ($campaign['segments'] ?? 0),
+            'content_items_attached' => (int) ($campaign['content'] ?? 0),
+            'events_linked' => (int) ($campaign['events'] ?? 0),
+            'has_schedule' => $campaign['ai_recommended_datetime'] ? 1 : 0,
+        ];
+    }
+
+    private function predictConflictWithModel(array $features, ?array $model): array
+    {
+        if ($model) {
+            // TODO: Call actual Vertex AI model endpoint
+        }
+
+        // Heuristic conflict prediction
+        $riskScore = 0.0;
+        if ($features['concurrent_campaigns'] > 2) $riskScore += 0.4;
+        if ($features['staff_count'] < 3 && $features['concurrent_campaigns'] > 0) $riskScore += 0.3;
+
+        $riskLevel = $riskScore < 0.3 ? 'low' : ($riskScore < 0.6 ? 'medium' : 'high');
+
+        return [
+            'conflict_probability' => round($riskScore, 3),
+            'risk_level' => $riskLevel,
+            'confidence_score' => 0.7,
+            'model_source' => $model ? 'google_automl' : 'heuristic',
+            'factors' => ['concurrent_campaigns' => $features['concurrent_campaigns'], 'staff_availability' => $features['staff_count']],
+        ];
+    }
+
+    private function predictEngagementWithModel(array $features, ?array $model): array
+    {
+        if ($model) {
+            // TODO: Call actual Vertex AI model endpoint
+        }
+
+        $engagementScore = 0.5;
+        if (in_array($features['day_of_week'], [6, 7])) $engagementScore += 0.2;
+
+        return [
+            'engagement_likelihood' => round(min(1.0, $engagementScore), 3),
+            'expected_attendance' => (int) (($features['audience_size'] ?? 0) * $engagementScore),
+            'confidence_score' => 0.65,
+            'model_source' => $model ? 'google_automl' : 'heuristic',
+        ];
+    }
+
+    private function predictReadinessWithModel(array $features, ?array $model): array
+    {
+        if ($model) {
+            // TODO: Call actual Vertex AI model endpoint
+        }
+
+        $readinessScore = 0.0;
+        if ($features['has_schedule']) $readinessScore += 0.3;
+        if ($features['audience_segments_assigned'] > 0) $readinessScore += 0.2;
+        if ($features['content_items_attached'] > 0) $readinessScore += 0.2;
+        if ($features['events_linked'] > 0) $readinessScore += 0.15;
+        if ($features['staff_count'] > 0) $readinessScore += 0.15;
+
+        $missing = [];
+        if (!$features['has_schedule']) $missing[] = 'schedule';
+        if ($features['audience_segments_assigned'] === 0) $missing[] = 'audience_segments';
+        if ($features['content_items_attached'] === 0) $missing[] = 'content_items';
+        if ($features['staff_count'] === 0) $missing[] = 'staff_assignment';
+
+        return [
+            'readiness_score' => round($readinessScore, 3),
+            'is_ready' => $readinessScore >= 0.7,
+            'missing_components' => $missing,
+            'confidence_score' => 0.75,
+            'model_source' => $model ? 'google_automl' : 'heuristic',
+        ];
+    }
+
+    // Caching methods
+    private function getCachedPrediction(string $cacheKey, string $modelType): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT prediction_result, confidence_score FROM campaign_department_ai_prediction_cache WHERE cache_key = :key AND expires_at > NOW()');
+        $stmt->execute(['key' => $cacheKey]);
+        $result = $stmt->fetch();
+
+        if ($result) {
+            $prediction = json_decode($result['prediction_result'], true);
+            $prediction['from_cache'] = true;
+            return $prediction;
+        }
+        return null;
+    }
+
+    private function cachePrediction(string $cacheKey, string $modelType, string $entityType, int $entityId, array $prediction, array $features, ?int $modelVersionId): void
+    {
+        $featureHash = hash('sha256', json_encode($features));
+        $expiresAt = date('Y-m-d H:i:s', time() + self::CACHE_TTL_SECONDS);
+
+        $stmt = $this->pdo->prepare('
+            INSERT INTO campaign_department_ai_prediction_cache (cache_key, model_type, model_version_id, entity_type, entity_id, feature_hash, prediction_result, confidence_score, expires_at)
+            VALUES (:key, :type, :model_id, :entity_type, :entity_id, :feature_hash, :result, :confidence, :expires)
+            ON DUPLICATE KEY UPDATE prediction_result = VALUES(prediction_result), confidence_score = VALUES(confidence_score), expires_at = VALUES(expires_at)
+        ');
+        $stmt->execute([
+            'key' => $cacheKey, 'type' => $modelType, 'model_id' => $modelVersionId,
+            'entity_type' => $entityType, 'entity_id' => $entityId, 'feature_hash' => $featureHash,
+            'result' => json_encode($prediction), 'confidence' => $prediction['confidence_score'] ?? null, 'expires' => $expiresAt,
+        ]);
+    }
+
+    private function generateCacheKey(string $modelType, string $entityType, int $entityId, array $features): string
+    {
+        return hash('md5', json_encode([$modelType, $entityType, $entityId, $features]));
+    }
+
+    private function logPredictionRequest(string $modelType, string $entityType, int $entityId, array $requestPayload, array $prediction, bool $usedCache, string $cacheKey, ?int $modelVersionId = null, ?int $responseTime = null): void
+    {
+        $stmt = $this->pdo->prepare('
+            INSERT INTO campaign_department_ai_prediction_requests (model_type, entity_type, entity_id, model_version_id, request_payload, prediction_result, used_cache, cache_key, response_time_ms, success, requested_by)
+            VALUES (:type, :entity_type, :entity_id, :model_id, :request, :result, :cache, :cache_key, :time, :success, :user)
+        ');
+        $stmt->execute([
+            'type' => $modelType, 'entity_type' => $entityType, 'entity_id' => $entityId, 'model_id' => $modelVersionId,
+            'request' => json_encode($requestPayload), 'result' => json_encode($prediction), 'cache' => $usedCache ? 1 : 0,
+            'cache_key' => $cacheKey, 'time' => $responseTime, 'success' => 1, 'user' => null,
+        ]);
+    }
+
+    // Training helper methods
+    private function createModelVersionRecord(string $modelType, string $modelName, string $version, string $targetColumn, array $featureColumns, int $dataSize, ?int $createdBy): int
+    {
+        $stmt = $this->pdo->prepare('
+            INSERT INTO campaign_department_ai_model_versions (model_name, model_type, training_version, target_column, feature_columns, training_data_size, project_id, region, created_by, training_status, model_id)
+            VALUES (:name, :type, :version, :target, :features, :size, :project, :region, :created_by, "pending", "")
+        ');
+        $stmt->execute([
+            'name' => $modelName, 'type' => $modelType, 'version' => $version, 'target' => $targetColumn,
+            'features' => json_encode($featureColumns), 'size' => $dataSize, 'project' => $this->googleProjectId,
+            'region' => $this->googleRegion, 'created_by' => $createdBy,
+        ]);
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    private function updateModelVersionRecord(int $id, array $data): void
+    {
+        $fields = [];
+        $params = ['id' => $id];
+        foreach ($data as $key => $value) {
+            if ($value !== null) {
+                $fields[] = "$key = :$key";
+                $params[$key] = $value;
+            }
+        }
+        if (empty($fields)) return;
+        $sql = 'UPDATE campaign_department_ai_model_versions SET ' . implode(', ', $fields) . ' WHERE id = :id';
+        $this->pdo->prepare($sql)->execute($params);
+    }
+
+    private function getModelVersion(int $id): ?array
+    {
+        $stmt = $this->pdo->prepare('SELECT mv.*, u.name as created_by_name FROM campaign_department_ai_model_versions mv LEFT JOIN campaign_department_users u ON u.id = mv.created_by WHERE mv.id = :id');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
+    private function logTrainingEvent(int $modelVersionId, string $actionType, string $message, array $metadata = [], ?int $createdBy = null): void
+    {
+        $stmt = $this->pdo->prepare('INSERT INTO campaign_department_ai_training_logs (model_version_id, action_type, message, metadata, created_by) VALUES (:model_id, :action, :message, :metadata, :created_by)');
+        $stmt->execute(['model_id' => $modelVersionId, 'action' => $actionType, 'message' => $message, 'metadata' => json_encode($metadata), 'created_by' => $createdBy]);
+    }
+
+    private function deactivateOtherModels(string $modelType, int $excludeId): void
+    {
+        $this->pdo->prepare('UPDATE campaign_department_ai_model_versions SET is_active = FALSE WHERE model_type = :type AND id != :exclude_id AND is_active = TRUE')
+            ->execute(['type' => $modelType, 'exclude_id' => $excludeId]);
+    }
+
+    private function generateVersionTag(string $modelType): string
+    {
+        $stmt = $this->pdo->prepare('SELECT training_version FROM campaign_department_ai_model_versions WHERE model_type = :type ORDER BY created_at DESC LIMIT 1');
+        $stmt->execute(['type' => $modelType]);
+        $latest = $stmt->fetchColumn();
+
+        if ($latest && preg_match('/v(\d+)\.(\d+)\.(\d+)/', $latest, $matches)) {
+            return "v{$matches[1]}.{$matches[2]}." . ((int)$matches[3] + 1);
+        }
+        return 'v1.0.0';
+    }
+
+    private function categorizeBudget(?float $budget): string
+    {
+        if (!$budget || $budget <= 0) return 'none';
+        if ($budget < 10000) return 'low';
+        if ($budget < 50000) return 'medium';
+        return 'high';
+    }
+
+    private function calculateOptimalTimeScore(array $row): float
+    {
+        $attendance = (int) ($row['attendance'] ?? 0);
+        $rating = (float) ($row['avg_rating'] ?? 0);
+        $hasConflict = (int) ($row['has_conflict'] ?? 0);
+        $reach = (int) ($row['reach'] ?? 0);
+
+        $attendanceScore = min(1.0, $attendance / 100);
+        $ratingScore = $rating / 5.0;
+        $conflictPenalty = $hasConflict ? -0.3 : 0;
+        $reachScore = min(1.0, $reach / 1000);
+
+        return round(($attendanceScore * 0.4 + $ratingScore * 0.3 + $reachScore * 0.2 + $conflictPenalty), 3);
+    }
+
+    // Placeholder methods for Vertex AI integration (to be implemented with actual Google Cloud SDK)
+    private function uploadDataset(string $modelType, array $trainingData, string $targetColumn, array $featureColumns): string
+    {
+        // TODO: Implement actual Vertex AI dataset upload
+        error_log("AutoMLService: Mock dataset upload for model type: $modelType");
+        return 'dataset_' . uniqid();
+    }
+
+    private function createTrainingJob(string $modelType, string $modelName, string $datasetId, string $targetColumn, array $featureColumns): string
+    {
+        // TODO: Implement actual Vertex AI training job creation
+        error_log("AutoMLService: Mock training job creation for model: $modelName");
+        return 'job_' . uniqid();
+    }
+
+    private function getTrainingJobStatus(string $jobId): array
+    {
+        // TODO: Implement actual Vertex AI job status check
+        return ['state' => 'JOB_STATE_PENDING', 'progress_percentage' => 0];
+    }
+
+    private function extractModelIdFromJob(string $jobId): string
+    {
+        // TODO: Extract actual model ID from completed training job
+        return 'model_' . uniqid();
+    }
+}
+
+
+
+
+

@@ -1,0 +1,1650 @@
+<?php
+$pageTitle = 'Dashboard';
+require_once __DIR__ . '/../header/includes/path_helper.php';
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo htmlspecialchars($pageTitle); ?> - Public Safety Campaign</title>
+    <script>
+        // Auth guard - MUST be first script executed
+        (function () {
+            const basePath = '<?php echo $basePath; ?>';
+            const urlParams = new URLSearchParams(window.location.search);
+            const justLoggedIn = urlParams.has('logged_in') || urlParams.has('signed_up') || urlParams.has('google_login');
+            
+            // Handle Google login token from URL
+            if (urlParams.has('google_login') && urlParams.has('token')) {
+                const token = urlParams.get('token');
+                if (token && token.trim() !== '') {
+                    try {
+                        localStorage.setItem('jwtToken', token);
+                        // Clean URL
+                        const cleanUrl = window.location.pathname;
+                        window.history.replaceState({}, '', cleanUrl);
+                    } catch (e) {
+                        console.error('Failed to store Google login token:', e);
+                    }
+                }
+            }
+            
+            function checkAuth(retryCount) {
+                retryCount = retryCount || 0;
+                const maxRetries = justLoggedIn ? 20 : 5;
+                
+                try {
+                    const token = localStorage.getItem('jwtToken');
+                    if (token && token.trim() !== '') {
+                        if (justLoggedIn) {
+                            const cleanUrl = window.location.pathname;
+                            window.history.replaceState({}, '', cleanUrl);
+                        }
+                        return;
+                    }
+                    
+                    if (retryCount < maxRetries) {
+                        const delay = justLoggedIn ? 300 : 100;
+                        setTimeout(function() {
+                            checkAuth(retryCount + 1);
+                        }, delay);
+                        return;
+                    }
+                    
+                    window.location.replace(basePath + '/login.php');
+                } catch (e) {
+                    if (justLoggedIn && retryCount < maxRetries) {
+                        setTimeout(function() {
+                            checkAuth(retryCount + 1);
+                        }, 300);
+                    } else {
+                        window.location.replace(basePath + '/login.php');
+                    }
+                }
+            }
+            checkAuth(0);
+        })();
+    </script>
+    <link rel="icon" type="image/x-icon" href="<?php echo htmlspecialchars($imgPath . '/favicon.ico'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($cssPath . '/global.css'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($cssPath . '/buttons.css'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($cssPath . '/forms.css'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($cssPath . '/cards.css'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($cssPath . '/content.css'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($basePath . '/sidebar/css/sidebar.css'); ?>">
+    <link rel="stylesheet" href="<?php echo htmlspecialchars($basePath . '/sidebar/css/admin-header.css'); ?>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="<?php echo htmlspecialchars($basePath . '/public/js/viewer-restrictions.js'); ?>"></script>
+    <script>
+        document.documentElement.setAttribute('data-theme', 'light');
+        localStorage.setItem('theme', 'light');
+        
+        // RBAC FIX: Set role cookie IMMEDIATELY in <head> BEFORE sidebar renders
+        (function() {
+            try {
+                const token = localStorage.getItem('jwtToken');
+                if (token) {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+                        const roleId = payload.role_id || payload.rid;
+                        if (roleId && typeof roleId === 'number') {
+                            const expires = new Date();
+                            expires.setTime(expires.getTime() + (24 * 60 * 60 * 1000));
+                            document.cookie = 'user_role_id=' + roleId + ';path=/;expires=' + expires.toUTCString() + ';SameSite=Lax';
+                            console.log('RBAC: Set user_role_id cookie in <head> =', roleId);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('RBAC: Failed to set role cookie in <head>:', e);
+            }
+        })();
+        
+        // RBAC: IMMEDIATE CSS injection to hide Viewer-restricted content BEFORE page renders
+        (function() {
+            try {
+                let userRole = null;
+                let roleId = null;
+                const token = localStorage.getItem('jwtToken');
+                if (token) {
+                    try {
+                        const parts = token.split('.');
+                        if (parts.length === 3) {
+                            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+                            roleId = payload.role_id || payload.rid;
+                            userRole = payload.role ? payload.role.toLowerCase() : null;
+                        }
+                    } catch (e) {}
+                }
+                if (!userRole) {
+                    const currentUserStr = localStorage.getItem('currentUser');
+                    if (currentUserStr) {
+                        try {
+                            const currentUser = JSON.parse(currentUserStr);
+                            userRole = currentUser.role ? currentUser.role.toLowerCase() : null;
+                            if (!roleId) roleId = currentUser.role_id;
+                        } catch (e) {}
+                    }
+                }
+                const isViewer = userRole === 'viewer' || userRole === 'partner' || 
+                                userRole === 'partner representative' || roleId === 6 ||
+                                (userRole && (userRole.includes('partner') || userRole.includes('viewer')));
+                
+                if (isViewer) {
+                    console.log('RBAC HEAD: Viewer detected - injecting blocking CSS');
+                    const style = document.createElement('style');
+                    style.id = 'rbac-viewer-block';
+                    style.textContent = `
+                        #dashboard-quick-actions,
+                        .quick-actions,
+                        #dashboard-quick-actions .quick-action-btn,
+                        .quick-actions .quick-action-btn,
+                        .quick-action-btn,
+                        #campaign-planning,
+                        #event-readiness,
+                        #audience-coverage,
+                        #partners-snapshot,
+                        #content-snapshot,
+                        a.widget-link,
+                        a[href*="campaigns.php"]:not([href*="dashboard"]),
+                        a[href*="events.php"]:not([href*="dashboard"]),
+                        a[href*="segments.php"],
+                        a[href*="partners.php"],
+                        a[href*="content.php"] {
+                            display: none !important;
+                            visibility: hidden !important;
+                            height: 0 !important;
+                            overflow: hidden !important;
+                            opacity: 0 !important;
+                            pointer-events: none !important;
+                            position: absolute !important;
+                            left: -9999px !important;
+                            width: 0 !important;
+                            margin: 0 !important;
+                            padding: 0 !important;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                    
+                    // IMMEDIATELY remove buttons from DOM (runs before page renders)
+                    const removeButtons = function() {
+                        const quickActions = document.querySelector('#dashboard-quick-actions') || document.querySelector('.quick-actions');
+                        if (quickActions) {
+                            quickActions.querySelectorAll('.quick-action-btn').forEach(btn => btn.remove());
+                            quickActions.remove(); // Remove entire container
+                        }
+                        // Also remove any stray buttons
+                        document.querySelectorAll('.quick-action-btn').forEach(btn => btn.remove());
+                    };
+                    // Run immediately and on DOM ready
+                    if (document.body) {
+                        removeButtons();
+                    } else {
+                        document.addEventListener('DOMContentLoaded', removeButtons);
+                    }
+                    // Also run after delays to catch any late-rendered buttons
+                    setTimeout(removeButtons, 0);
+                    setTimeout(removeButtons, 100);
+                    setTimeout(removeButtons, 500);
+                    setTimeout(removeButtons, 1000);
+                    document.head.appendChild(style);
+                }
+            } catch (e) {
+                console.error('RBAC HEAD: Error:', e);
+            }
+        })();
+    </script>
+</head>
+<body class="module-dashboard" data-module="dashboard">
+    <?php include __DIR__ . '/../sidebar/includes/sidebar.php'; ?>
+    <?php include __DIR__ . '/../sidebar/includes/admin-header.php'; ?>
+    
+    <main class="main-content-wrapper">
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    }
+
+    .main-content-wrapper {
+        margin-left: 280px;
+        margin-top: 70px;
+        min-height: calc(100vh - 70px);
+        transition: margin-left 0.3s ease;
+    }
+    
+    @media (max-width: 768px) {
+        .main-content-wrapper {
+            margin-left: 0 !important;
+        }
+    }
+    
+    .dashboard-page {
+        width: 100%;
+        margin: 0;
+        padding: 28px;
+        box-sizing: border-box;
+        max-width: 1600px;
+    }
+    
+    .dashboard-section {
+        scroll-margin-top: 90px;
+    }
+    
+    .dashboard-grid .dashboard-section {
+        margin-bottom: 0;
+    }
+    
+    .page-header {
+        margin-bottom: 28px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+    
+    .page-header h1 {
+        font-size: 28px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .page-header h1::before {
+        content: '';
+        width: 4px;
+        height: 28px;
+        background: linear-gradient(180deg, #4c8a89 0%, #3d7170 100%);
+        border-radius: 2px;
+    }
+    
+    .page-header p {
+        margin: 6px 0 0 16px;
+        color: #64748b;
+        font-size: 14px;
+    }
+    
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+    
+    @media (max-width: 1400px) {
+        .kpi-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .kpi-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .kpi-card {
+        background: white;
+        border: none;
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #4c8a89 0%, #6ba3a2 100%);
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    
+    .kpi-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(76, 138, 137, 0.15);
+    }
+    
+    .kpi-card:hover::before {
+        opacity: 1;
+    }
+    
+    .kpi-value {
+        font-size: 36px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #4c8a89 0%, #3d7170 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 8px 0;
+        line-height: 1;
+    }
+    
+    .kpi-label {
+        font-size: 12px;
+        color: #64748b;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #f0fdfa 0%, #e6f7f6 100%);
+        border-radius: 12px;
+        font-size: 22px;
+    }
+    
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .dashboard-grid .dashboard-section {
+        margin-bottom: 0;
+    }
+    
+    .dashboard-grid .dashboard-card {
+        height: 100%;
+    }
+    
+    @media (max-width: 1200px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .dashboard-card {
+        background: white;
+        border: none;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
+        transition: all 0.3s;
+    }
+    
+    .dashboard-card:hover {
+        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    }
+    
+    .dashboard-card h3 {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 0 0 16px 0;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #f1f5f9;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .dashboard-card h3 i {
+        color: #4c8a89;
+    }
+    
+    .status-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .status-list li {
+        padding: 12px 14px;
+        border-radius: 10px;
+        margin-bottom: 8px;
+        background: #f8fafc;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+    
+    .status-list li:hover {
+        background: #f0fdfa;
+        border-color: #99f6e4;
+    }
+    
+    .status-list li:last-child {
+        border-bottom: none;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    .badge-draft { background: #f1f5f9; color: #475569; }
+    .badge-scheduled { background: #dbeafe; color: #1e40af; }
+    .badge-active { background: #dcfce7; color: #166534; }
+    .badge-completed { background: #e0e7ff; color: #4338ca; }
+    
+    .alert-panel {
+        background: #fff7ed;
+        border: 2px solid #fb923c;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 16px;
+    }
+    
+    .alert-panel.info {
+        background: #eff6ff;
+        border-color: #3b82f6;
+    }
+    
+    .alert-panel h4 {
+        margin: 0 0 12px 0;
+        color: #92400e;
+        font-size: 16px;
+    }
+    
+    .alert-panel.info h4 {
+        color: #1e40af;
+    }
+    
+    .alert-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .alert-list li {
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(251, 146, 60, 0.2);
+    }
+    
+    .alert-list li:last-child {
+        border-bottom: none;
+    }
+    
+    .chart-container {
+        position: relative;
+        height: 200px;
+        margin-top: 16px;
+    }
+    
+    .widget-link {
+        color: #4c8a89;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 12px;
+        transition: color 0.2s;
+    }
+    
+    .widget-link:hover {
+        color: #2563eb;
+    }
+    
+    .system-overview {
+        background: linear-gradient(135deg, #4c8a89 0%, #3d7170 50%, #2d5a59 100%);
+        color: white;
+        border-radius: 20px;
+        padding: 24px 28px;
+        margin-bottom: 28px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(76, 138, 137, 0.25);
+    }
+    
+    .system-overview::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 400px;
+        height: 400px;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        pointer-events: none;
+    }
+    
+    .system-overview::after {
+        content: '';
+        position: absolute;
+        bottom: -30%;
+        left: -10%;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
+        pointer-events: none;
+    }
+    
+    .system-overview h2 {
+        margin: 0 0 10px 0;
+        font-size: 20px;
+        font-weight: 700;
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .system-overview h2::before {
+        content: '🛡️';
+        font-size: 24px;
+    }
+    
+    .system-overview p {
+        margin: 0;
+        font-size: 13px;
+        opacity: 0.92;
+        line-height: 1.6;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        position: relative;
+        z-index: 1;
+        max-width: 85%;
+    }
+    
+    .system-overview-toggle {
+        position: absolute;
+        top: 24px;
+        right: 28px;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        color: white;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        backdrop-filter: blur(4px);
+        z-index: 2;
+    }
+    
+    .system-overview-toggle:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-1px);
+    }
+    
+    .system-overview.expanded p {
+        display: block;
+        -webkit-line-clamp: unset;
+    }
+    
+    .search-bar {
+        position: relative;
+        margin-bottom: 0;
+    }
+    
+    .top-actions-row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+    
+    .top-actions-row .search-bar {
+        flex: 1;
+        min-width: 300px;
+    }
+    
+    .quick-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    
+    .quick-action-btn {
+        padding: 12px 18px;
+        background: white;
+        border: none;
+        border-radius: 10px;
+        color: #1e293b;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    
+    .quick-action-btn:hover {
+        background: #f0fdfa;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(76, 138, 137, 0.15);
+    }
+    
+    .quick-action-btn i {
+        color: #4c8a89;
+    }
+    
+    .quick-action-btn.primary {
+        background: linear-gradient(135deg, #4c8a89 0%, #3d7170 100%);
+        color: white;
+        box-shadow: 0 4px 12px rgba(76, 138, 137, 0.3);
+    }
+    
+    .quick-action-btn.primary i {
+        color: white;
+    }
+    
+    .quick-action-btn.primary:hover {
+        background: linear-gradient(135deg, #3d7170 0%, #2d5a59 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(76, 138, 137, 0.4);
+    }
+    
+    .search-bar input {
+        width: 100%;
+        padding: 14px 18px 14px 48px;
+        border: none;
+        border-radius: 12px;
+        font-size: 14px;
+        background: white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        transition: all 0.3s;
+    }
+    
+    .search-bar input:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(76, 138, 137, 0.15), 0 4px 12px rgba(0,0,0,0.08);
+    }
+    
+    .widget-link {
+        color: #4c8a89;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 16px;
+        padding: 8px 14px;
+        background: linear-gradient(135deg, #f0fdfa 0%, #e6f7f6 100%);
+        border-radius: 8px;
+        transition: all 0.3s;
+    }
+    
+    .widget-link:hover {
+        background: linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%);
+        color: #115e59;
+        transform: translateX(4px);
+    }
+    
+    .search-bar .search-icon {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #64748b;
+    }
+    
+    .search-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        margin-top: 4px;
+        max-height: 400px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+    }
+    
+    .search-results.show {
+        display: block;
+    }
+    
+    .search-result-item {
+        padding: 12px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .search-result-item:hover {
+        background: #f8fafc;
+    }
+    
+    .search-result-item:last-child {
+        border-bottom: none;
+    }
+</style>
+
+<main class="dashboard-page">
+    <div class="page-header">
+        <h1>Dashboard</h1>
+        <p>System-wide preparedness planning overview and insights</p>
+    </div>
+
+    <!-- Top Actions Row: Search + Quick Actions -->
+    <?php
+    // RBAC: Get user role to hide action buttons for Viewer
+    require_once __DIR__ . '/../sidebar/includes/get_user_role.php';
+    $currentUserRole = getCurrentUserRole();
+    
+    // More robust check: Viewer can be 'viewer', 'partner', 'Partner Representative', etc.
+    $isViewer = false;
+    if ($currentUserRole) {
+        $roleLower = strtolower(trim($currentUserRole));
+        $isViewer = ($roleLower === 'viewer' || $roleLower === 'partner' || 
+                    strpos($roleLower, 'partner') !== false || strpos($roleLower, 'viewer') !== false);
+    }
+    
+    // Also check cookie directly for role_id (role_id 6 is typically Partner/Viewer)
+    if (!$isViewer && isset($_COOKIE['user_role_id'])) {
+        $roleIdFromCookie = (int)($_COOKIE['user_role_id'] ?? 0);
+        // Check if role_id is 6 (Partner/Viewer) OR query database to confirm
+        if ($roleIdFromCookie > 0) {
+            try {
+                require_once __DIR__ . '/../src/Config/db_connect.php';
+                if (isset($pdo) && $pdo instanceof PDO) {
+                    $stmt = $pdo->prepare('SELECT name FROM campaign_department_roles WHERE id = :id LIMIT 1');
+                    $stmt->execute(['id' => $roleIdFromCookie]);
+                    $roleResult = $stmt->fetch(PDO::FETCH_ASSOC);
+                    if ($roleResult) {
+                        $roleName = strtolower(trim($roleResult['name']));
+                        $isViewer = ($roleName === 'viewer' || $roleName === 'partner' || 
+                                    strpos($roleName, 'partner') !== false || strpos($roleName, 'viewer') !== false ||
+                                    $roleIdFromCookie === 6);
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('RBAC DASHBOARD: Error checking role from cookie: ' . $e->getMessage());
+            }
+        }
+    }
+    
+    // Debug logging
+    error_log('RBAC DASHBOARD: currentUserRole=' . ($currentUserRole ?? 'NULL') . ', cookie_role_id=' . ($_COOKIE['user_role_id'] ?? 'NULL') . ', isViewer=' . ($isViewer ? 'YES' : 'NO'));
+    ?>
+    <div class="top-actions-row">
+        <div class="search-bar">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" id="globalSearch" placeholder="Search campaigns, events, content..." autocomplete="off">
+            <div id="searchResults" class="search-results"></div>
+        </div>
+        <?php if (!$isViewer): // RBAC: Hide action buttons container entirely for Viewer (read-only) ?>
+        <div class="quick-actions" id="dashboard-quick-actions">
+            <a href="<?php echo $publicPath; ?>/campaigns.php#planning-section" class="quick-action-btn primary">
+                <i class="fas fa-plus"></i> Create Campaign
+            </a>
+            <a href="<?php echo $publicPath; ?>/events.php#create-event" class="quick-action-btn">
+                <i class="fas fa-calendar-plus"></i> Schedule Event
+            </a>
+            <a href="<?php echo $publicPath; ?>/partners.php" class="quick-action-btn">
+                <i class="fas fa-handshake"></i> Add Partner
+            </a>
+            <a href="<?php echo $publicPath; ?>/events.php#event-calendar" class="quick-action-btn">
+                <i class="fas fa-calendar-alt"></i> View Calendar
+            </a>
+        </div>
+        <?php else: ?>
+        <!-- Viewer: No action buttons - read-only access -->
+        <?php endif; ?>
+    </div>
+
+    <!-- System Overview Panel -->
+    <div class="system-overview" id="systemOverview">
+        <h2>Barangay Public Safety Campaign Management System</h2>
+        <p>
+            This system supports pre-calamity preparedness planning, scheduling, and coordination for Quezon City barangays.
+            It enables structured campaign creation, manual and AI-assisted scheduling, conflict avoidance, visibility of schedules,
+            and data preparation for impact evaluation. The system focuses on safety seminars, preparedness orientations, fire and
+            earthquake drills, clean-up drives, and simulation activities to improve community readiness.
+        </p>
+        <button class="system-overview-toggle" onclick="toggleSystemOverview()">
+            <i class="fas fa-info-circle"></i> About
+        </button>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <section id="kpi-overview" class="dashboard-section">
+    <div class="kpi-grid" id="kpiGrid">
+        <a href="<?php echo $publicPath; ?>/campaigns.php?status=active" class="kpi-card kpi-card-link" style="text-decoration: none; color: inherit; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.15)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+            <div class="kpi-icon">📢</div>
+            <div class="kpi-value" id="kpiActiveCampaigns">-</div>
+            <div class="kpi-label">Active Campaigns</div>
+        </a>
+        <a href="<?php echo $publicPath; ?>/campaigns.php?status=scheduled" class="kpi-card kpi-card-link" style="text-decoration: none; color: inherit; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.15)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+            <div class="kpi-icon">📅</div>
+            <div class="kpi-value" id="kpiScheduledCampaigns">-</div>
+            <div class="kpi-label">Scheduled Campaigns</div>
+        </a>
+        <a href="<?php echo $publicPath; ?>/events.php" class="kpi-card kpi-card-link" style="text-decoration: none; color: inherit; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.15)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+            <div class="kpi-icon">🎯</div>
+            <div class="kpi-value" id="kpiUpcomingEvents">-</div>
+            <div class="kpi-label">Upcoming Events</div>
+        </a>
+        <a href="<?php echo $publicPath; ?>/segments.php" class="kpi-card kpi-card-link" style="text-decoration: none; color: inherit; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.15)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+            <div class="kpi-icon">👥</div>
+            <div class="kpi-value" id="kpiDefinedSegments">-</div>
+            <div class="kpi-label">Audience Segments</div>
+        </a>
+        <a href="<?php echo $publicPath; ?>/partners.php" class="kpi-card kpi-card-link" style="text-decoration: none; color: inherit; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.15)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+            <div class="kpi-icon">🤝</div>
+            <div class="kpi-value" id="kpiPartnerOrgs">-</div>
+            <div class="kpi-label">Partner Organizations</div>
+        </a>
+        <a href="<?php echo $publicPath; ?>/surveys.php#survey-responses" class="kpi-card kpi-card-link" style="text-decoration: none; color: inherit; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.15)';" onmouseout="this.style.transform=''; this.style.boxShadow='';">
+            <div class="kpi-icon">💬</div>
+            <div class="kpi-value" id="kpiFeedbackResponses">-</div>
+            <div class="kpi-label">Feedback Responses</div>
+        </a>
+    </div>
+    </section>
+
+    <!-- Dashboard Grid -->
+    <div class="dashboard-grid">
+        <!-- Campaign Planning Snapshot (Hidden for Viewer - shows process info) -->
+        <?php if (!$isViewer): ?>
+        <section id="campaign-planning" class="dashboard-section">
+            <div class="dashboard-card">
+            <h3>📊 Campaign Planning Snapshot</h3>
+            <div id="campaignStatusChart" class="chart-container">
+                <canvas id="campaignStatusChartCanvas"></canvas>
+            </div>
+            <div id="upcomingCampaigns" style="margin-top: 16px;">
+                <strong>Upcoming Campaigns (Next 14 Days):</strong>
+                <ul class="status-list" id="upcomingCampaignsList">
+                    <li>Loading...</li>
+                </ul>
+            </div>
+            <div style="margin-top: 16px; padding: 12px; background: #f8fafc; border-radius: 8px;">
+                <strong>AI vs Manual Scheduling:</strong>
+                <div style="margin-top: 8px;">
+                    <span id="aiScheduledCount">-</span> AI-recommended | 
+                    <span id="manualScheduledCount">-</span> Manual
+                </div>
+            </div>
+            <a href="<?php echo $publicPath; ?>/campaigns.php#list-section" class="widget-link">
+                View All Campaigns <i class="fas fa-arrow-right"></i>
+            </a>
+            </div>
+        </section>
+
+        <!-- Event & Seminar Readiness (Hidden for Viewer - shows process info) -->
+        <section id="event-readiness" class="dashboard-section">
+            <div class="dashboard-card">
+            <h3>🎯 Event & Seminar Readiness</h3>
+            <div id="eventTypeChart" class="chart-container">
+                <canvas id="eventTypeChartCanvas"></canvas>
+            </div>
+            <div id="upcomingEvents" style="margin-top: 16px;">
+                <strong>Upcoming Events:</strong>
+                <ul class="status-list" id="upcomingEventsList">
+                    <li>Loading...</li>
+                </ul>
+            </div>
+            <div style="margin-top: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; font-size: 13px;">
+                <div><strong>Capacity Readiness:</strong> <span id="capacityInfo">-</span></div>
+                <div style="margin-top: 8px;"><strong>Linkage:</strong> <span id="linkageInfo">-</span></div>
+            </div>
+            <a href="<?php echo $publicPath; ?>/events.php#events-list" class="widget-link">
+                View All Events <i class="fas fa-arrow-right"></i>
+            </a>
+            </div>
+        </section>
+
+        <!-- Audience Coverage Overview (Hidden for Viewer - shows process info) -->
+        <section id="audience-coverage" class="dashboard-section">
+            <div class="dashboard-card">
+            <h3>👥 Audience Coverage Overview</h3>
+            <div style="margin-bottom: 16px;">
+                <div style="font-size: 24px; font-weight: 700; color: #4c8a89;" id="totalSegmentsCount">-</div>
+                <div style="font-size: 14px; color: #64748b;">Total Audience Segments Defined</div>
+            </div>
+            <div>
+                <strong>Most Targeted Segments:</strong>
+                <ul class="status-list" id="mostTargetedSegments">
+                    <li>Loading...</li>
+                </ul>
+            </div>
+            <div style="margin-top: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; font-size: 13px;">
+                <div><strong>Campaigns with Segments:</strong> <span id="campaignsWithSegments">-</span></div>
+                <div style="margin-top: 4px;"><strong>Segments in Use:</strong> <span id="segmentsUsed">-</span></div>
+            </div>
+            <a href="<?php echo $publicPath; ?>/segments.php" class="widget-link">
+                View All Segments <i class="fas fa-arrow-right"></i>
+            </a>
+            </div>
+        </section>
+        <?php endif; // End RBAC: Hide process cards for Viewer ?>
+
+        <!-- Engagement & Impact Preview (Visible to Viewer - results only) -->
+        <section id="engagement-impact" class="dashboard-section">
+            <div class="dashboard-card">
+            <h3>📈 Engagement & Impact Preview</h3>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px;">
+                <div style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                    <div style="font-size: 28px; font-weight: 700; color: #4c8a89;" id="campaignsWithFeedback">-</div>
+                    <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Campaigns with Feedback</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                    <div style="font-size: 28px; font-weight: 700; color: #4c8a89;" id="eventsWithAttendance">-</div>
+                    <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Events with Attendance</div>
+                </div>
+            </div>
+            <div style="padding: 12px; background: #f8fafc; border-radius: 8px;">
+                <div><strong>Total Attendance:</strong> <span id="totalAttendance">-</span></div>
+                <div style="margin-top: 4px;"><strong>Recent Engagement (30 days):</strong> <span id="recentEngagement">-</span> events</div>
+            </div>
+            <?php if (!$isViewer): // RBAC: Hide "View Impact Reports" link for Viewer ?>
+            <a href="<?php echo $publicPath; ?>/impact.php" class="widget-link">
+                View Impact Reports <i class="fas fa-arrow-right"></i>
+            </a>
+            <?php else: ?>
+            <div style="margin-top: 16px; padding: 12px; background: #f0f9ff; border-left: 4px solid #0ea5e9; border-radius: 6px; color: #0c4a6e; font-size: 13px;">
+                <i class="fas fa-info-circle"></i> Summary view only for partners. Contact administrator for detailed reports.
+            </div>
+            <?php endif; ?>
+            </div>
+        </section>
+
+        <!-- Partner & Collaboration Snapshot (Hidden for Viewer - internal management) -->
+        <?php if (!$isViewer): ?>
+        <section id="partners-snapshot" class="dashboard-section">
+            <div class="dashboard-card">
+            <h3>🤝 Partner & Collaboration Snapshot</h3>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px;">
+                <div style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                    <div style="font-size: 28px; font-weight: 700; color: #4c8a89;" id="activePartners">-</div>
+                    <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Active Partners</div>
+                </div>
+                <div style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                    <div style="font-size: 28px; font-weight: 700; color: #4c8a89;" id="upcomingPartneredEvents">-</div>
+                    <div style="font-size: 12px; color: #64748b; margin-top: 4px;">Partnered Events</div>
+                </div>
+            </div>
+            <div style="padding: 12px; background: #f8fafc; border-radius: 8px; font-size: 13px;">
+                <div><strong>Schools:</strong> <span id="schoolsCount">-</span></div>
+                <div style="margin-top: 4px;"><strong>NGOs:</strong> <span id="ngosCount">-</span></div>
+            </div>
+            <a href="<?php echo $publicPath; ?>/partners.php" class="widget-link">
+                View All Partners <i class="fas fa-arrow-right"></i>
+            </a>
+            </div>
+        </section>
+
+        <!-- Content Repository Snapshot (Hidden for Viewer - internal management) -->
+        <section id="content-snapshot" class="dashboard-section">
+            <div class="dashboard-card">
+            <h3>📚 Content Repository Snapshot</h3>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;">
+                <div style="text-align: center; padding: 12px; background: #f8fafc; border-radius: 8px;">
+                    <div style="font-size: 24px; font-weight: 700; color: #4c8a89;" id="totalContent">-</div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Total Content</div>
+                </div>
+                <div style="text-align: center; padding: 12px; background: #f8fafc; border-radius: 8px;">
+                    <div style="font-size: 24px; font-weight: 700; color: #166534;" id="approvedContent">-</div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Approved</div>
+                </div>
+                <div style="text-align: center; padding: 12px; background: #f8fafc; border-radius: 8px;">
+                    <div style="font-size: 24px; font-weight: 700; color: #dc2626;" id="pendingContent">-</div>
+                    <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Pending</div>
+                </div>
+            </div>
+            <div id="recentContent" style="margin-top: 16px;">
+                <strong>Recent Approved Content:</strong>
+                <ul class="status-list" id="recentContentList">
+                    <li>Loading...</li>
+                </ul>
+            </div>
+            <div style="margin-top: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; font-size: 13px;">
+                <div><strong>Draft Content:</strong> <span id="draftContent">-</span></div>
+                <div style="margin-top: 4px;"><strong>Top Categories:</strong> <span id="topCategories">-</span></div>
+            </div>
+            <a href="<?php echo $publicPath; ?>/content.php" class="widget-link">
+                View Content Library <i class="fas fa-arrow-right"></i>
+            </a>
+            </div>
+        </section>
+        <?php endif; // End RBAC: Hide internal management cards for Viewer ?>
+    </div>
+
+    <!-- Alerts & Reminders Panel -->
+    <section id="alerts-reminders" class="dashboard-section">
+        <div class="dashboard-card" style="grid-column: 1 / -1;">
+            <h3>⚠️ Alerts & Reminders</h3>
+            <div id="alertsContainer">
+                <p style="text-align:center; color:#64748b; padding:24px;">Loading alerts...</p>
+            </div>
+        </div>
+    </section>
+
+<script>
+<?php require_once __DIR__ . '/../header/includes/path_helper.php'; ?>
+const token = localStorage.getItem('jwtToken') || '';
+const basePath = '<?php echo $basePath; ?>';
+const apiBase = '<?php echo $apiPath; ?>';
+const publicPath = '<?php echo $publicPath; ?>';
+
+let campaignStatusChart = null;
+let eventTypeChart = null;
+
+// RBAC: JavaScript fallback - hide action buttons and forms for Viewer (client-side check)
+// This runs immediately and aggressively hides Viewer-restricted content
+(function() {
+    function hideViewerRestrictedContent() {
+        try {
+            let userRole = null;
+            let roleId = null;
+            
+            // Method 1: Try to get role from JWT payload
+            const token = localStorage.getItem('jwtToken');
+            if (token) {
+                try {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+                        roleId = payload.role_id || payload.rid;
+                        userRole = payload.role ? payload.role.toLowerCase() : null;
+                    }
+                } catch (e) {
+                    console.error('RBAC: Failed to decode JWT:', e);
+                }
+            }
+            
+            // Method 2: Try to get role from localStorage user object
+            if (!userRole) {
+                const currentUserStr = localStorage.getItem('currentUser');
+                if (currentUserStr) {
+                    try {
+                        const currentUser = JSON.parse(currentUserStr);
+                        userRole = currentUser.role ? currentUser.role.toLowerCase() : null;
+                        if (!roleId) roleId = currentUser.role_id;
+                    } catch (e) {
+                        console.error('RBAC: Failed to parse currentUser:', e);
+                    }
+                }
+            }
+            
+            // Check if Viewer/Partner (role_id 6 is typically Partner Representative/Viewer)
+            // Also check role name for 'viewer', 'partner', 'partner representative'
+            const isViewerRole = userRole === 'viewer' || 
+                                userRole === 'partner' || 
+                                userRole === 'partner representative' ||
+                                roleId === 6 || // Adjust this ID if Partner/Viewer has different role_id
+                                (userRole && (userRole.includes('partner') || userRole.includes('viewer')));
+            
+            if (isViewerRole) {
+                console.log('RBAC: Viewer role detected (role:', userRole, 'roleId:', roleId, '). Hiding restricted content.');
+                
+                // IMMEDIATELY inject CSS to hide process cards (runs before DOM is ready)
+                const style = document.createElement('style');
+                style.id = 'rbac-viewer-hide';
+                style.textContent = `
+                    #campaign-planning, 
+                    #event-readiness, 
+                    #audience-coverage, 
+                    #partners-snapshot, 
+                    #content-snapshot,
+                    .quick-actions {
+                        display: none !important;
+                    }
+                `;
+                document.head.appendChild(style);
+                
+                // Also hide via JavaScript (in case CSS didn't catch them)
+                function hideProcessCards() {
+                    // AGGRESSIVELY remove action buttons
+                    const quickActions = document.querySelector('#dashboard-quick-actions') || document.querySelector('.quick-actions');
+                    if (quickActions) {
+                        // Remove all action buttons inside
+                        quickActions.querySelectorAll('.quick-action-btn').forEach(btn => {
+                            btn.remove(); // Remove from DOM entirely
+                        });
+                        // Hide the container if empty
+                        if (quickActions.children.length === 0 || (quickActions.children.length === 1 && quickActions.querySelector('div'))) {
+                            quickActions.style.display = 'none';
+                        }
+                    }
+                    
+                    // Hide ALL create/edit/action buttons anywhere on page
+                    document.querySelectorAll('button.btn-primary, a.quick-action-btn, button, a.btn').forEach(btn => {
+                        const text = btn.textContent.toLowerCase();
+                        if (text.includes('create') || text.includes('add') || text.includes('schedule') || 
+                            text.includes('edit') || text.includes('delete') || text.includes('approve') ||
+                            text.includes('upload') || text.includes('manage') || text.includes('configure') ||
+                            text.includes('view calendar')) {
+                            btn.remove(); // Remove from DOM entirely
+                        }
+                    });
+                    
+                    // Hide process cards
+                    ['#campaign-planning', '#event-readiness', '#audience-coverage', 
+                     '#partners-snapshot', '#content-snapshot'].forEach(selector => {
+                        const card = document.querySelector(selector);
+                        if (card) {
+                            card.style.display = 'none';
+                            card.style.visibility = 'hidden';
+                        }
+                    });
+                    
+                    // AGGRESSIVELY remove ALL "View All" links (they lead to forms, not results)
+                    document.querySelectorAll('a.widget-link, a[href*="campaigns.php"], a[href*="events.php"], a[href*="segments.php"], a[href*="partners.php"], a[href*="content.php"]').forEach(link => {
+                        const text = link.textContent.toLowerCase();
+                        const href = link.getAttribute('href') || '';
+                        // Remove any link that goes to campaigns, events, segments, partners, content
+                        // These lead to forms/processes, not just results
+                        if (text.includes('view all') || text.includes('view impact') || text.includes('view content') ||
+                            text.includes('view campaigns') || text.includes('view events') || text.includes('view segments') ||
+                            text.includes('view partners') || href.includes('campaigns.php') || href.includes('events.php') ||
+                            href.includes('segments.php') || href.includes('partners.php') || href.includes('content.php')) {
+                            link.remove(); // Remove from DOM entirely
+                        }
+                    });
+                }
+                
+                // Run immediately
+                hideProcessCards();
+                // Run when DOM is ready
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', hideProcessCards);
+                }
+                // Run again after a delay
+                setTimeout(hideProcessCards, 100);
+                setTimeout(hideProcessCards, 500);
+            } else {
+                console.log('RBAC: NOT Viewer (role:', userRole, 'roleId:', roleId, ')');
+            }
+        } catch (e) {
+            console.error('RBAC: Error in hideViewerRestrictedContent:', e);
+        }
+    }
+    
+    // Run immediately (before DOM fully loads)
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', hideViewerRestrictedContent);
+    } else {
+        hideViewerRestrictedContent();
+    }
+    
+    // Also run after a short delay to catch dynamically loaded content
+    setTimeout(hideViewerRestrictedContent, 100);
+})();
+
+// Load dashboard data
+async function loadDashboard() {
+    try {
+        // Get token from localStorage
+        const authToken = localStorage.getItem('jwtToken');
+        if (!authToken || authToken.trim() === '') {
+            // No token - redirect to login
+            window.location.href = basePath + '/login.php';
+            return;
+        }
+        
+        const res = await fetch(apiBase + '/api/v1/dashboard/summary', {
+            headers: { 'Authorization': 'Bearer ' + authToken.trim() }
+        });
+        
+        if (!res.ok) {
+            if (res.status === 401) {
+                // Token expired or invalid - try to refresh or redirect to login
+                // Check if token exists but might be expired
+                const tokenExists = localStorage.getItem('jwtToken');
+                if (tokenExists && tokenExists.trim() !== '') {
+                    // Token exists but invalid - might be expired
+                    // Silently fail to avoid console spam, but don't redirect immediately
+                    // Let the user continue using the page if they're already logged in
+                    return;
+                } else {
+                    // No token - redirect to login
+                    window.location.href = basePath + '/login.php';
+                    return;
+                }
+            }
+            
+            // Read response as text first (can only read once)
+            const errorText = await res.text();
+            let errorMessage = 'Failed to load dashboard data';
+            try {
+                const errorData = JSON.parse(errorText);
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                // If not JSON, use the text (truncated if too long)
+                if (errorText && errorText.length < 200) {
+                    errorMessage = errorText;
+                }
+            }
+            console.error('Dashboard API error:', res.status, errorMessage);
+            throw new Error(errorMessage);
+        }
+        
+        // Parse JSON from response
+        const data = await res.json();
+        
+        // Update KPIs
+        updateKPIs(data.kpis);
+        
+        // Update Campaign Snapshot
+        updateCampaignSnapshot(data.campaign_snapshot);
+        
+        // Update Event Readiness
+        updateEventReadiness(data.event_readiness);
+        
+        // Update Audience Coverage
+        updateAudienceCoverage(data.audience_coverage);
+        
+        // Update Engagement Preview
+        updateEngagementPreview(data.engagement_preview);
+        
+        // Update Partner Snapshot
+        updatePartnerSnapshot(data.partner_snapshot);
+        
+        // Update Content Snapshot
+        updateContentSnapshot(data.content_snapshot || {});
+        
+        // Update Alerts
+        updateAlerts(data.alerts);
+        
+    } catch (err) {
+        console.error('Error loading dashboard:', err);
+        document.getElementById('kpiGrid').innerHTML = '<div style="grid-column: 1 / -1; text-align:center; padding:24px; color:#dc2626;">Error loading dashboard: ' + err.message + '</div>';
+    }
+}
+
+function updateKPIs(kpis) {
+    document.getElementById('kpiActiveCampaigns').textContent = kpis.active_campaigns || 0;
+    document.getElementById('kpiScheduledCampaigns').textContent = kpis.scheduled_campaigns || 0;
+    document.getElementById('kpiUpcomingEvents').textContent = kpis.upcoming_events || 0;
+    document.getElementById('kpiDefinedSegments').textContent = kpis.defined_segments || 0;
+    document.getElementById('kpiPartnerOrgs').textContent = kpis.partner_organizations || 0;
+    document.getElementById('kpiFeedbackResponses').textContent = kpis.feedback_responses || 0;
+}
+
+function updateCampaignSnapshot(snapshot) {
+    // Campaign status chart
+    const ctx = document.getElementById('campaignStatusChartCanvas');
+    if (campaignStatusChart) {
+        campaignStatusChart.destroy();
+    }
+    
+    const statusData = snapshot.by_status || {};
+    
+    // Define vibrant colors for each status
+    const statusColors = {
+        'draft': '#94a3b8',
+        'pending': '#f59e0b',
+        'approved': '#3b82f6',
+        'scheduled': '#8b5cf6',
+        'ongoing': '#10b981',
+        'active': '#22c55e',
+        'completed': '#6366f1',
+        'archived': '#64748b',
+        'cancelled': '#ef4444'
+    };
+    
+    const labels = Object.keys(statusData);
+    const colors = labels.map(label => statusColors[label.toLowerCase()] || '#4c8a89');
+    
+    campaignStatusChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: Object.values(statusData),
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: '#ffffff',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        font: {
+                            size: 11,
+                            weight: '600'
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Upcoming campaigns
+    const upcomingList = document.getElementById('upcomingCampaignsList');
+    if (snapshot.upcoming && snapshot.upcoming.length > 0) {
+        upcomingList.innerHTML = snapshot.upcoming.map(c => `
+            <li>
+                <span><strong>${c.title}</strong></span>
+                <span class="status-badge badge-${c.status}">${c.status}</span>
+            </li>
+        `).join('');
+    } else {
+        upcomingList.innerHTML = '<li style="color:#64748b;">No upcoming campaigns</li>';
+    }
+    
+    // AI vs Manual
+    document.getElementById('aiScheduledCount').textContent = snapshot.ai_scheduled || 0;
+    document.getElementById('manualScheduledCount').textContent = snapshot.manual_scheduled || 0;
+}
+
+function updateEventReadiness(readiness) {
+    // Event type chart
+    const ctx = document.getElementById('eventTypeChartCanvas');
+    if (eventTypeChart) {
+        eventTypeChart.destroy();
+    }
+    
+    const typeData = readiness.by_type || {};
+    eventTypeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(typeData),
+            datasets: [{
+                label: 'Events',
+                data: Object.values(typeData),
+                backgroundColor: '#4c8a89',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false,
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                }
+            }
+        }
+    });
+    
+    // Upcoming events
+    const eventsList = document.getElementById('upcomingEventsList');
+    if (readiness.upcoming && readiness.upcoming.length > 0) {
+        eventsList.innerHTML = readiness.upcoming.map(e => `
+            <li>
+                <div>
+                    <strong>${e.event_name}</strong><br>
+                    <small style="color:#64748b;">${e.date} ${e.start_time || ''} | ${e.venue || 'TBD'}</small>
+                </div>
+                <span class="status-badge badge-${e.event_status}">${e.event_status}</span>
+            </li>
+        `).join('');
+    } else {
+        eventsList.innerHTML = '<li style="color:#64748b;">No upcoming events</li>';
+    }
+    
+    // Capacity and linkage info
+    const capacity = readiness.capacity || {};
+    const linkage = readiness.linkage || {};
+    document.getElementById('capacityInfo').textContent = 
+        `${capacity.events_with_capacity || 0} events with capacity set`;
+    document.getElementById('linkageInfo').textContent = 
+        `${linkage.linked || 0} linked to campaigns, ${linkage.standalone || 0} standalone`;
+}
+
+function updateAudienceCoverage(coverage) {
+    document.getElementById('totalSegmentsCount').textContent = coverage.total_segments || 0;
+    
+    const segmentsList = document.getElementById('mostTargetedSegments');
+    if (coverage.most_targeted && coverage.most_targeted.length > 0) {
+        segmentsList.innerHTML = coverage.most_targeted.map(s => `
+            <li>
+                <span>${s.segment_name}</span>
+                <span style="color:#64748b;">${s.campaign_count || 0} campaigns</span>
+            </li>
+        `).join('');
+    } else {
+        segmentsList.innerHTML = '<li style="color:#64748b;">No segments yet</li>';
+    }
+    
+    const summary = coverage.summary || {};
+    document.getElementById('campaignsWithSegments').textContent = summary.campaigns_with_segments || 0;
+    document.getElementById('segmentsUsed').textContent = summary.segments_used || 0;
+}
+
+function updateEngagementPreview(engagement) {
+    document.getElementById('campaignsWithFeedback').textContent = engagement.campaigns_with_feedback || 0;
+    document.getElementById('eventsWithAttendance').textContent = engagement.events_with_attendance || 0;
+    document.getElementById('totalAttendance').textContent = engagement.total_attendance || 0;
+    document.getElementById('recentEngagement').textContent = engagement.recent_engagement || 0;
+}
+
+function updatePartnerSnapshot(partners) {
+    document.getElementById('activePartners').textContent = partners.active_partners || 0;
+    document.getElementById('upcomingPartneredEvents').textContent = partners.upcoming_partnered_events?.length || 0;
+    document.getElementById('schoolsCount').textContent = partners.schools_count || 0;
+    document.getElementById('ngosCount').textContent = partners.ngos_count || 0;
+}
+
+function updateContentSnapshot(content) {
+    document.getElementById('totalContent').textContent = content.total_content || 0;
+    document.getElementById('approvedContent').textContent = content.approved_content || 0;
+    document.getElementById('pendingContent').textContent = content.pending_content || 0;
+    document.getElementById('draftContent').textContent = content.draft_content || 0;
+    
+    // Recent approved content
+    const recentList = document.getElementById('recentContentList');
+    if (content.recent_content && content.recent_content.length > 0) {
+        recentList.innerHTML = content.recent_content.map(c => `
+            <li>
+                <span><strong>${c.title}</strong></span>
+                <span style="color:#64748b; font-size:12px;">${c.content_type || 'N/A'}</span>
+            </li>
+        `).join('');
+    } else {
+        recentList.innerHTML = '<li style="color:#64748b;">No approved content yet</li>';
+    }
+    
+    // Top categories
+    const categories = content.by_category || {};
+    const topCategories = Object.keys(categories).slice(0, 3).join(', ') || 'None';
+    document.getElementById('topCategories').textContent = topCategories;
+}
+
+function updateAlerts(alerts) {
+    const container = document.getElementById('alertsContainer');
+    
+    if (!alerts || alerts.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#64748b; padding:24px;">No alerts at this time</p>';
+        return;
+    }
+    
+    let html = '';
+    alerts.forEach(alert => {
+        html += `
+            <div class="alert-panel ${alert.type === 'info' ? 'info' : ''}">
+                <h4>${alert.title} (${alert.count})</h4>
+                <ul class="alert-list">
+        `;
+        if (alert.items && alert.items.length > 0) {
+            alert.items.forEach(item => {
+                const name = item.title || item.event_name || item.name || 'N/A';
+                html += `<li>${name}</li>`;
+            });
+        }
+        html += `
+                </ul>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Global search
+let searchTimeout;
+document.getElementById('globalSearch').addEventListener('input', function(e) {
+    const query = e.target.value.trim();
+    const resultsDiv = document.getElementById('searchResults');
+    
+    clearTimeout(searchTimeout);
+    
+    if (query.length < 2) {
+        resultsDiv.classList.remove('show');
+        return;
+    }
+    
+    searchTimeout = setTimeout(async () => {
+        try {
+            const res = await fetch(apiBase + '/api/v1/dashboard/search?q=' + encodeURIComponent(query), {
+                headers: { 'Authorization': 'Bearer ' + (token || '').trim() }
+            });
+            const data = await res.json();
+            
+            if (data.data && data.data.length > 0) {
+                resultsDiv.innerHTML = data.data.map(item => `
+                    <div class="search-result-item" onclick="window.location.href='${publicPath}/${item.url}#${item.id}'">
+                        <strong>${item.name}</strong>
+                        <span style="color:#64748b; font-size:12px; margin-left:8px;">${item.type}</span>
+                    </div>
+                `).join('');
+                resultsDiv.classList.add('show');
+            } else {
+                resultsDiv.innerHTML = '<div class="search-result-item" style="color:#64748b;">No results found</div>';
+                resultsDiv.classList.add('show');
+            }
+        } catch (err) {
+            console.error('Search error:', err);
+        }
+    }, 300);
+});
+
+// RBAC: Aggressively hide action buttons for Viewer after page load
+(function() {
+    function enforceViewerRestrictions() {
+        try {
+            let userRole = null;
+            let roleId = null;
+            const token = localStorage.getItem('jwtToken');
+            if (token) {
+                try {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+                        roleId = payload.role_id || payload.rid;
+                        userRole = payload.role ? payload.role.toLowerCase() : null;
+                    }
+                } catch (e) {}
+            }
+            if (!userRole) {
+                const currentUserStr = localStorage.getItem('currentUser');
+                if (currentUserStr) {
+                    try {
+                        const currentUser = JSON.parse(currentUserStr);
+                        userRole = currentUser.role ? currentUser.role.toLowerCase() : null;
+                        if (!roleId) roleId = currentUser.role_id;
+                    } catch (e) {}
+                }
+            }
+            const isViewer = userRole === 'viewer' || userRole === 'partner' || 
+                            userRole === 'partner representative' || roleId === 6 ||
+                            (userRole && (userRole.includes('partner') || userRole.includes('viewer')));
+            
+            if (isViewer) {
+                console.log('RBAC DASHBOARD: Viewer detected - hiding all action buttons');
+                
+                // Hide quick actions container
+                const quickActions = document.getElementById('dashboard-quick-actions');
+                if (quickActions) {
+                    quickActions.style.display = 'none';
+                    quickActions.remove();
+                }
+                
+                // Hide any remaining action buttons
+                document.querySelectorAll('.quick-action-btn, .quick-actions').forEach(btn => {
+                    btn.style.display = 'none';
+                    btn.remove();
+                });
+                
+                // Hide create/edit/delete buttons anywhere on page
+                document.querySelectorAll('a[href*="create"], a[href*="Create"], button[onclick*="create"], button[onclick*="Create"]').forEach(btn => {
+                    const text = btn.textContent || btn.innerText || '';
+                    if (text.toLowerCase().includes('create') || text.toLowerCase().includes('add') || 
+                        text.toLowerCase().includes('edit') || text.toLowerCase().includes('delete')) {
+                        btn.style.display = 'none';
+                        btn.remove();
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('RBAC DASHBOARD: Error enforcing restrictions:', e);
+        }
+    }
+    
+    // Run immediately and after DOM is ready
+    enforceViewerRestrictions();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', enforceViewerRestrictions);
+    } else {
+        setTimeout(enforceViewerRestrictions, 100);
+    }
+    
+    // Also run after a short delay to catch dynamically loaded content
+    setTimeout(enforceViewerRestrictions, 500);
+})();
+
+// Close search results when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.search-bar')) {
+        document.getElementById('searchResults').classList.remove('show');
+    }
+});
+
+// Initialize
+loadDashboard();
+
+// Toggle system overview expand/collapse
+function toggleSystemOverview() {
+    const overview = document.getElementById('systemOverview');
+    overview.classList.toggle('expanded');
+}
+
+// Refresh every 5 minutes
+setInterval(loadDashboard, 300000);
+</script>
+    
+    <?php include __DIR__ . '/../header/includes/footer.php'; ?>
+    </main>
+

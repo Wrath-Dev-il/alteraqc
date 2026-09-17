@@ -1,0 +1,933 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Middleware\RoleMiddleware;
+use PDO;
+use RuntimeException;
+
+class SegmentController
+{
+    // Quezon City barangays only - hardcoded list
+    private const QC_BARANGAYS = [
+        'Barangay Batasan Hills',
+        'Barangay Commonwealth',
+        'Barangay Holy Spirit',
+        'Barangay Payatas',
+        'Barangay Bagong Silangan',
+        'Barangay Tandang Sora',
+        'Barangay UP Campus',
+        'Barangay Diliman',
+        'Barangay Matandang Balara',
+        'Barangay Loyola Heights',
+        'Barangay Cubao',
+        'Barangay Kamuning',
+        'Barangay Project 6',
+        'Barangay Project 8',
+        'Barangay Fairview',
+        'Barangay Nagkaisang Nayon',
+    ];
+
+    // Allowed values
+    private const GEOGRAPHIC_SCOPES = ['Barangay', 'Zone', 'Purok'];
+    private const SECTOR_TYPES = ['Households', 'Youth', 'Senior Citizens', 'Schools', 'NGOs', 'Person with Disabilities', 'Pregnant Women'];
+    private const RISK_LEVELS = ['Low', 'Medium', 'High'];
+    private const BASIS_OPTIONS = [
+        'Historical trend',
+        'Inspection results',
+        'Attendance records',
+        'Incident pattern reference'
+    ];
+
+    public function __construct(
+        private PDO $pdo,
+        private string $jwtSecret,
+        private string $jwtIssuer,
+        private string $jwtAudience,
+        private int $jwtExpirySeconds
+    ) {
+        $this->ensureSegmentEnhancements();
+    }
+
+    private function ensureSegmentEnhancements(): void
+    {
+        try {
+            $qtyColumn = $this->pdo->query("SHOW COLUMNS FROM `campaign_department_audience_segments` LIKE 'qty'")->fetch(PDO::FETCH_ASSOC);
+            if (!$qtyColumn) {
+                $this->pdo->exec("ALTER TABLE `campaign_department_audience_segments` ADD COLUMN `qty` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `segment_name`");
+            }
+        } catch (\Throwable $e) {
+            error_log('SegmentController: unable to ensure qty column: ' . $e->getMessage());
+        }
+
+        try {
+            $geoColumn = $this->pdo->query("SHOW COLUMNS FROM `campaign_department_audience_segments` LIKE 'geographies_json'")->fetch(PDO::FETCH_ASSOC);
+            if (!$geoColumn) {
+                $this->pdo->exec("ALTER TABLE `campaign_department_audience_segments` ADD COLUMN `geographies_json` JSON NULL AFTER `risk_level`");
+            }
+        } catch (\Throwable $e) {
+            error_log('SegmentController: unable to ensure geographies_json column: ' . $e->getMessage());
+        }
+    }
+
+    private function decodeLocations(?string $json, ?string $primary = null): array
+    {
+        $locations = [];
+        if ($json) {
+            $decoded = json_decode($json, true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $location) {
+                    $location = trim((string)$location);
+                    if ($location !== '') {
+                        $locations[] = $location;
+                    }
+                }
+            }
+        }
+        if ($primary) {
+            $locations[] = trim($primary);
+        }
+        return array_values(array_unique(array_filter($locations)));
+    }
+
+    public function index(?array $user, array $params = []): array
+    {
+        // RBAC: All authenticated users can view segments (read access)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        // Check if is_archived column exists, add it if not
+        try {
+            $colCheck = $this->pdo->query("SHOW COLUMNS FROM `campaign_department_audience_segments` LIKE 'is_archived'")->fetch();
+            if (!$colCheck) {
+                $this->pdo->exec("ALTER TABLE `campaign_department_audience_segments` ADD COLUMN `is_archived` TINYINT(1) DEFAULT 0");
+            }
+        } catch (\PDOException $e) {
+            // Column might already exist or table issue
+        }
+        
+        $stmt = $this->pdo->query('
+            SELECT 
+                id,
+                id AS segment_id,
+                segment_name,
+                segment_name AS name,
+                COALESCE(qty, 0) AS qty,
+                geographic_scope,
+                location_reference,
+                sector_type,
+                risk_level,
+                geographies_json,
+                basis_of_segmentation,
+                COALESCE(is_archived, 0) AS is_archived,
+                created_at,
+                updated_at
+            FROM `campaign_department_audience_segments` 
+            ORDER BY created_at DESC
+        ');
+        return ['data' => $stmt->fetchAll(\PDO::FETCH_ASSOC)];
+    }
+
+    public function show(?array $user, array $params = []): array
+    {
+        // RBAC: All authenticated users can view segments (read access)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        $id = (int) ($params['id'] ?? 0);
+        $stmt = $this->pdo->prepare('
+            SELECT 
+                id AS segment_id,
+                segment_name,
+                COALESCE(qty, 0) AS qty,
+                geographic_scope,
+                location_reference,
+                sector_type,
+                risk_level,
+                geographies_json,
+                basis_of_segmentation,
+                created_at,
+                updated_at
+            FROM `campaign_department_audience_segments` 
+            WHERE id = :id
+        ');
+        $stmt->execute(['id' => $id]);
+        $segment = $stmt->fetch(\PDO::FETCH_ASSOC);
+        
+        if (!$segment) {
+            http_response_code(404);
+            return ['error' => 'Segment not found'];
+        }
+        
+        return ['data' => $segment];
+    }
+
+    public function store(?array $user, array $params = []): array
+    {
+        // RBAC: Only authorized LGU roles can create segments (viewer cannot)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        try {
+            $userRole = RoleMiddleware::getUserRole($user, $this->pdo);
+            $userRoleName = $userRole ? strtolower($userRole) : '';
+            
+            // Viewer is read-only
+            if ($userRoleName === 'viewer') {
+                http_response_code(403);
+                return ['error' => 'Viewer role is read-only. You cannot create segments.'];
+            }
+            
+            // Allowed roles: admin, staff, secretary, kagawad, captain
+            $allowedRoles = ['admin', 'staff', 'secretary', 'kagawad', 'captain', 'barangay administrator', 'barangay staff', 'system_admin', 'barangay_admin'];
+            if (!$userRole || !in_array($userRoleName, $allowedRoles, true)) {
+                http_response_code(403);
+                return ['error' => 'Insufficient permissions. Only authorized LGU personnel can create segments.'];
+            }
+        } catch (\Exception $e) {
+            http_response_code(403);
+            return ['error' => 'Access denied: ' . $e->getMessage()];
+        }
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        
+        $segmentName = trim($input['segment_name'] ?? '');
+        $qty = max(1, (int)($input['qty'] ?? 1));
+        $geographicScope = $input['geographic_scope'] ?? null;
+        $locationReference = trim($input['location_reference'] ?? '') ?: null;
+        $sectorType = $input['sector_type'] ?? null;
+        $riskLevel = $input['risk_level'] ?? null;
+        $basisOfSegmentation = $input['basis_of_segmentation'] ?? null;
+
+        // Validation
+        if (!$segmentName) {
+            http_response_code(422);
+            return ['error' => 'Segment name is required'];
+        }
+
+        if ($geographicScope && !in_array($geographicScope, self::GEOGRAPHIC_SCOPES, true)) {
+            http_response_code(422);
+            return ['error' => 'Invalid geographic scope. Must be: ' . implode(', ', self::GEOGRAPHIC_SCOPES)];
+        }
+
+        if ($locationReference && !in_array($locationReference, self::QC_BARANGAYS, true)) {
+            http_response_code(422);
+            return ['error' => 'Location reference must be a valid Quezon City barangay'];
+        }
+
+        if ($sectorType && !in_array($sectorType, self::SECTOR_TYPES, true)) {
+            http_response_code(422);
+            return ['error' => 'Invalid sector type. Must be: ' . implode(', ', self::SECTOR_TYPES)];
+        }
+
+        if ($riskLevel && !in_array($riskLevel, self::RISK_LEVELS, true)) {
+            http_response_code(422);
+            return ['error' => 'Invalid risk level. Must be: ' . implode(', ', self::RISK_LEVELS)];
+        }
+
+        if ($basisOfSegmentation && !in_array($basisOfSegmentation, self::BASIS_OPTIONS, true)) {
+            http_response_code(422);
+            return ['error' => 'Invalid basis of segmentation'];
+        }
+
+        // If the same segment already exists, add the new quantity instead of rejecting it.
+        // Any new location is appended to geographies_json and existing locations are retained.
+        $checkStmt = $this->pdo->prepare('
+            SELECT id, COALESCE(qty, 0) AS qty, location_reference, geographies_json
+            FROM `campaign_department_audience_segments`
+            WHERE LOWER(TRIM(segment_name)) = LOWER(TRIM(:name))
+            LIMIT 1
+        ');
+        $checkStmt->execute(['name' => $segmentName]);
+        $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($existing) {
+            $locations = $this->decodeLocations($existing['geographies_json'] ?? null, $existing['location_reference'] ?? null);
+            if ($locationReference) {
+                $locations[] = $locationReference;
+            }
+            $locations = array_values(array_unique(array_filter($locations)));
+
+            $updateStmt = $this->pdo->prepare('
+                UPDATE `campaign_department_audience_segments`
+                SET qty = COALESCE(qty, 0) + :qty,
+                    geographies_json = :geographies_json,
+                    location_reference = COALESCE(NULLIF(location_reference, \'\'), :location_reference),
+                    geographic_scope = COALESCE(geographic_scope, :geographic_scope),
+                    sector_type = COALESCE(sector_type, :sector_type),
+                    risk_level = COALESCE(risk_level, :risk_level),
+                    basis_of_segmentation = COALESCE(basis_of_segmentation, :basis),
+                    is_archived = 0,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id
+            ');
+            $updateStmt->execute([
+                'id' => (int)$existing['id'],
+                'qty' => $qty,
+                'geographies_json' => json_encode($locations, JSON_UNESCAPED_UNICODE),
+                'location_reference' => $locationReference,
+                'geographic_scope' => $geographicScope ?: null,
+                'sector_type' => $sectorType ?: null,
+                'risk_level' => $riskLevel ?: null,
+                'basis' => $basisOfSegmentation ?: null,
+            ]);
+
+            return [
+                'id' => (int)$existing['id'],
+                'merged' => true,
+                'message' => 'Existing segment updated: quantity added and new location merged'
+            ];
+        }
+
+        $locations = $locationReference ? [$locationReference] : [];
+        $stmt = $this->pdo->prepare('
+            INSERT INTO `campaign_department_audience_segments` (
+                segment_name,
+                qty,
+                geographic_scope,
+                location_reference,
+                sector_type,
+                risk_level,
+                geographies_json,
+                basis_of_segmentation
+            ) VALUES (
+                :segment_name,
+                :qty,
+                :geographic_scope,
+                :location_reference,
+                :sector_type,
+                :risk_level,
+                :geographies_json,
+                :basis_of_segmentation
+            )
+        ');
+
+        $stmt->execute([
+            'segment_name' => $segmentName,
+            'qty' => $qty,
+            'geographic_scope' => $geographicScope ?: null,
+            'location_reference' => $locationReference,
+            'sector_type' => $sectorType ?: null,
+            'risk_level' => $riskLevel ?: null,
+            'geographies_json' => json_encode($locations, JSON_UNESCAPED_UNICODE),
+            'basis_of_segmentation' => $basisOfSegmentation ?: null,
+        ]);
+
+        return ['id' => (int) $this->pdo->lastInsertId(), 'message' => 'Segment created'];
+    }
+
+    public function update(?array $user, array $params = []): array
+    {
+        // RBAC: Only authorized LGU roles can update segments (viewer cannot)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        try {
+            $userRole = RoleMiddleware::getUserRole($user, $this->pdo);
+            $userRoleName = $userRole ? strtolower($userRole) : '';
+            
+            // Viewer is read-only
+            if ($userRoleName === 'viewer') {
+                http_response_code(403);
+                return ['error' => 'Viewer role is read-only. You cannot update segments.'];
+            }
+            
+            // Allowed roles: admin, staff, secretary, kagawad, captain
+            $allowedRoles = ['admin', 'staff', 'secretary', 'kagawad', 'captain', 'barangay administrator', 'barangay staff', 'system_admin', 'barangay_admin'];
+            if (!$userRole || !in_array($userRoleName, $allowedRoles, true)) {
+                http_response_code(403);
+                return ['error' => 'Insufficient permissions. Only authorized LGU personnel can update segments.'];
+            }
+        } catch (\Exception $e) {
+            http_response_code(403);
+            return ['error' => 'Access denied: ' . $e->getMessage()];
+        }
+        
+        $id = (int) ($params['id'] ?? 0);
+        $segment = $this->findSegment($id);
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        
+        $segmentName = trim($input['segment_name'] ?? $segment['segment_name']);
+        $qty = max(0, (int)($input['qty'] ?? ($segment['qty'] ?? 0)));
+        $geographicScope = $input['geographic_scope'] ?? $segment['geographic_scope'];
+        $locationReference = isset($input['location_reference']) ? (trim($input['location_reference']) ?: null) : $segment['location_reference'];
+        $sectorType = $input['sector_type'] ?? $segment['sector_type'];
+        $riskLevel = $input['risk_level'] ?? $segment['risk_level'];
+        $basisOfSegmentation = $input['basis_of_segmentation'] ?? $segment['basis_of_segmentation'];
+
+        // Validation (same as store)
+        if (!$segmentName) {
+            http_response_code(422);
+            return ['error' => 'Segment name is required'];
+        }
+
+        if ($geographicScope && !in_array($geographicScope, self::GEOGRAPHIC_SCOPES, true)) {
+            http_response_code(422);
+            return ['error' => 'Invalid geographic scope'];
+        }
+
+        if ($locationReference && !in_array($locationReference, self::QC_BARANGAYS, true)) {
+            http_response_code(422);
+            return ['error' => 'Location reference must be a valid Quezon City barangay'];
+        }
+
+        if ($sectorType && !in_array($sectorType, self::SECTOR_TYPES, true)) {
+            http_response_code(422);
+            return ['error' => 'Invalid sector type'];
+        }
+
+        if ($riskLevel && !in_array($riskLevel, self::RISK_LEVELS, true)) {
+            http_response_code(422);
+            return ['error' => 'Invalid risk level'];
+        }
+
+        if ($basisOfSegmentation && !in_array($basisOfSegmentation, self::BASIS_OPTIONS, true)) {
+            http_response_code(422);
+            return ['error' => 'Invalid basis of segmentation'];
+        }
+
+        // Check for duplicate names (excluding current segment)
+        $checkStmt = $this->pdo->prepare('SELECT id FROM `campaign_department_audience_segments` WHERE segment_name = :name AND id != :id');
+        $checkStmt->execute(['name' => $segmentName, 'id' => $id]);
+        if ($checkStmt->fetch()) {
+            http_response_code(422);
+            return ['error' => 'Segment name already exists'];
+        }
+
+        $locations = $this->decodeLocations($segment['geographies_json'] ?? null, $segment['location_reference'] ?? null);
+        if ($locationReference) {
+            $locations[] = $locationReference;
+        }
+        $locations = array_values(array_unique(array_filter($locations)));
+
+        $stmt = $this->pdo->prepare('
+            UPDATE `campaign_department_audience_segments` SET
+                segment_name = :segment_name,
+                qty = :qty,
+                geographic_scope = :geographic_scope,
+                location_reference = :location_reference,
+                sector_type = :sector_type,
+                risk_level = :risk_level,
+                geographies_json = :geographies_json,
+                basis_of_segmentation = :basis_of_segmentation,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+        ');
+
+        $stmt->execute([
+            'id' => $id,
+            'segment_name' => $segmentName,
+            'qty' => $qty,
+            'geographic_scope' => $geographicScope ?: null,
+            'location_reference' => $locationReference,
+            'sector_type' => $sectorType ?: null,
+            'risk_level' => $riskLevel ?: null,
+            'geographies_json' => json_encode($locations, JSON_UNESCAPED_UNICODE),
+            'basis_of_segmentation' => $basisOfSegmentation ?: null,
+        ]);
+
+        return ['message' => 'Segment updated'];
+    }
+
+    public function getMembers(?array $user, array $params = []): array
+    {
+        $segmentId = (int) ($params['id'] ?? 0);
+        $this->findSegment($segmentId); // Verify segment exists
+        
+        $stmt = $this->pdo->prepare('
+            SELECT 
+                id,
+                full_name AS name,
+                sector,
+                barangay,
+                zone,
+                purok,
+                contact
+            FROM `campaign_department_audience_members` 
+            WHERE segment_id = :segment_id
+            ORDER BY full_name
+        ');
+        $stmt->execute(['segment_id' => $segmentId]);
+        
+        return ['data' => $stmt->fetchAll(\PDO::FETCH_ASSOC)];
+    }
+
+    public function getParticipationHistory(?array $user, array $params = []): array
+    {
+        $segmentId = (int) ($params['id'] ?? 0);
+        $this->findSegment($segmentId); // Verify segment exists
+        
+        // Read-only view of participation history
+        $stmt = $this->pdo->prepare('
+            SELECT 
+                campaign_id,
+                campaign_name,
+                event_id,
+                event_name,
+                event_type,
+                event_date,
+                attendance_count,
+                check_in,
+                check_out,
+                member_name
+            FROM participation_history
+            WHERE segment_id = :segment_id
+            ORDER BY event_date DESC, check_in DESC
+        ');
+        $stmt->execute(['segment_id' => $segmentId]);
+        
+        return ['data' => $stmt->fetchAll(\PDO::FETCH_ASSOC)];
+    }
+
+    public function linkToCampaign(?array $user, array $params = []): array
+    {
+        $segmentId = (int) ($params['id'] ?? 0);
+        $this->findSegment($segmentId);
+        
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $campaignId = (int) ($input['campaign_id'] ?? 0);
+        
+        if (!$campaignId) {
+            http_response_code(422);
+            return ['error' => 'Campaign ID is required'];
+        }
+        
+        // Verify campaign exists
+        $campaignStmt = $this->pdo->prepare('SELECT id FROM `campaign_department_campaigns` WHERE id = :id');
+        $campaignStmt->execute(['id' => $campaignId]);
+        if (!$campaignStmt->fetch()) {
+            http_response_code(404);
+            return ['error' => 'Campaign not found'];
+        }
+        
+        // Link segment to campaign (many-to-many)
+        try {
+            $stmt = $this->pdo->prepare('INSERT IGNORE INTO campaign_audience (campaign_id, segment_id) VALUES (:campaign_id, :segment_id)');
+            $stmt->execute([
+                'campaign_id' => $campaignId,
+                'segment_id' => $segmentId,
+            ]);
+        } catch (\PDOException $e) {
+            // Already linked, that's fine
+        }
+        
+        return ['message' => 'Segment linked to campaign'];
+    }
+
+    public function getLinkedCampaigns(?array $user, array $params = []): array
+    {
+        $segmentId = (int) ($params['id'] ?? 0);
+        $this->findSegment($segmentId);
+        
+        $stmt = $this->pdo->prepare('
+            SELECT 
+                c.id AS campaign_id,
+                c.title AS campaign_name,
+                c.status,
+                c.start_date,
+                c.end_date
+            FROM `campaign_department_campaigns` c
+            INNER JOIN `campaign_department_campaign_audience` ca ON ca.campaign_id = c.id
+            WHERE ca.segment_id = :segment_id
+            ORDER BY c.start_date DESC
+        ');
+        $stmt->execute(['segment_id' => $segmentId]);
+        
+        return ['data' => $stmt->fetchAll(\PDO::FETCH_ASSOC)];
+    }
+
+    public function importMembers(?array $user, array $params = []): array
+    {
+        $segmentId = (int) ($params['id'] ?? 0);
+        $this->findSegment($segmentId);
+
+        if (!isset($_FILES['file'])) {
+            http_response_code(422);
+            return ['error' => 'CSV file is required'];
+        }
+
+        $file = $_FILES['file'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            http_response_code(400);
+            return ['error' => 'Upload error'];
+        }
+
+        $tmp = $file['tmp_name'];
+        $fh = fopen($tmp, 'r');
+        if (!$fh) {
+            http_response_code(400);
+            return ['error' => 'Cannot open uploaded file'];
+        }
+
+        $header = fgetcsv($fh);
+        if (!$header) {
+            http_response_code(400);
+            return ['error' => 'CSV missing header'];
+        }
+
+        // Map headers to lowercase for case-insensitive matching
+        $headerMap = array_map('strtolower', $header);
+        $idxName = array_search('name', $headerMap, true);
+        if ($idxName === false) {
+            $idxName = array_search('full_name', $headerMap, true);
+        }
+        $idxSector = array_search('sector', $headerMap, true);
+        $idxBarangay = array_search('barangay', $headerMap, true);
+        $idxZone = array_search('zone', $headerMap, true);
+        $idxPurok = array_search('purok', $headerMap, true);
+        $idxContact = array_search('contact', $headerMap, true);
+
+        if ($idxName === false) {
+            http_response_code(422);
+            return ['error' => 'CSV must contain "name" or "full_name" column'];
+        }
+
+        $ins = $this->pdo->prepare('
+            INSERT INTO campaign_department_audience_members (
+                segment_id, 
+                full_name, 
+                sector, 
+                barangay, 
+                zone, 
+                purok, 
+                contact
+            ) VALUES (
+                :segment_id, 
+                :full_name, 
+                :sector, 
+                :barangay, 
+                :zone, 
+                :purok, 
+                :contact
+            )
+        ');
+
+        $successCount = 0;
+        $errors = [];
+        $rowNum = 1; // Start at 1 since row 0 is header (already read)
+        
+        while (($row = fgetcsv($fh)) !== false) {
+            $rowNum++; // Increment for each data row (row 2 is first data row after header)
+            
+            $name = trim($row[$idxName] ?? '');
+            if (!$name) {
+                $errors[] = 'Row ' . $rowNum . ': Name is required';
+                continue;
+            }
+
+            $sector = $idxSector !== false ? trim($row[$idxSector] ?? '') : null;
+            $barangay = $idxBarangay !== false ? trim($row[$idxBarangay] ?? '') : null;
+            $zone = $idxZone !== false ? trim($row[$idxZone] ?? '') : null;
+            $purok = $idxPurok !== false ? trim($row[$idxPurok] ?? '') : null;
+            $contact = $idxContact !== false ? trim($row[$idxContact] ?? '') : null;
+
+            // Validate sector if provided - skip validation if empty
+            if ($sector && !in_array($sector, self::SECTOR_TYPES, true)) {
+                $errors[] = 'Row ' . $rowNum . ': Invalid sector type "' . $sector . '". Valid types: ' . implode(', ', self::SECTOR_TYPES);
+                continue;
+            }
+
+            // Validate barangay if provided - skip validation if empty
+            if ($barangay && !in_array($barangay, self::QC_BARANGAYS, true)) {
+                $errors[] = 'Row ' . $rowNum . ': Invalid barangay "' . $barangay . '". Must be a valid Quezon City barangay.';
+                continue;
+            }
+
+            try {
+                $ins->execute([
+                    'segment_id' => $segmentId,
+                    'full_name' => $name,
+                    'sector' => $sector ?: null,
+                    'barangay' => $barangay ?: null,
+                    'zone' => $zone ?: null,
+                    'purok' => $purok ?: null,
+                    'contact' => $contact ?: null,
+                ]);
+                $successCount++;
+            } catch (\PDOException $e) {
+                $errors[] = 'Row ' . $rowNum . ': Database error - ' . $e->getMessage();
+            }
+        }
+
+        fclose($fh);
+
+        $result = ['message' => "Imported {$successCount} members"];
+        if (!empty($errors)) {
+            $result['errors'] = $errors;
+            $result['error_count'] = count($errors);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Delete a segment
+     */
+    public function destroy(?array $user, array $params = []): array
+    {
+        // RBAC: Only authorized LGU roles can delete segments (viewer cannot)
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        try {
+            $userRole = RoleMiddleware::getUserRole($user, $this->pdo);
+            $userRoleName = $userRole ? strtolower($userRole) : '';
+            
+            // Viewer is read-only - cannot delete anything
+            if ($userRoleName === 'viewer') {
+                http_response_code(403);
+                return ['error' => 'Viewer role is read-only. You cannot delete segments.'];
+            }
+            
+            // Only admin and captain can delete segments
+            $allowedRoles = ['admin', 'captain', 'barangay administrator', 'system_admin', 'barangay_admin'];
+            if (!$userRole || !in_array($userRoleName, $allowedRoles, true)) {
+                http_response_code(403);
+                return ['error' => 'Insufficient permissions. Only administrators and captains can delete segments.'];
+            }
+        } catch (\Exception $e) {
+            http_response_code(403);
+            return ['error' => 'Access denied: ' . $e->getMessage()];
+        }
+        
+        $id = (int) ($params['id'] ?? 0);
+        $segment = $this->findSegment($id);
+        
+        // Delete related records first (foreign key constraints)
+        $this->pdo->beginTransaction();
+        try {
+            // Check if audience_members table exists and delete from it
+            try {
+                $stmt = $this->pdo->prepare('DELETE FROM `audience_members` WHERE segment_id = :id');
+                $stmt->execute(['id' => $id]);
+            } catch (\PDOException $e) {
+                // Table may not exist, ignore
+            }
+            
+            // Check if campaign_department_audience_segment_members table exists
+            try {
+                $stmt = $this->pdo->prepare('DELETE FROM `campaign_department_audience_segment_members` WHERE segment_id = :id');
+                $stmt->execute(['id' => $id]);
+            } catch (\PDOException $e) {
+                // Table may not exist, ignore
+            }
+            
+            // Delete campaign-segment associations (try both table names)
+            try {
+                $stmt = $this->pdo->prepare('DELETE FROM `campaign_department_campaign_audience` WHERE segment_id = :id');
+                $stmt->execute(['id' => $id]);
+            } catch (\PDOException $e) {
+                // Table may not exist, try alternative name
+                try {
+                    $stmt = $this->pdo->prepare('DELETE FROM `campaign_audience` WHERE segment_id = :id');
+                    $stmt->execute(['id' => $id]);
+                } catch (\PDOException $e2) {
+                    // Neither table exists, ignore
+                }
+            }
+            
+            // Delete the segment
+            $stmt = $this->pdo->prepare('DELETE FROM `campaign_department_audience_segments` WHERE id = :id');
+            $stmt->execute(['id' => $id]);
+            
+            $this->pdo->commit();
+            
+            return ['message' => 'Segment deleted successfully'];
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            error_log('SegmentController::destroy - Error: ' . $e->getMessage());
+            http_response_code(500);
+            return ['error' => 'Failed to delete segment: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Archive a segment (soft delete)
+     */
+    public function archive(?array $user, array $params = []): array
+    {
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        try {
+            $userRole = RoleMiddleware::getUserRole($user, $this->pdo);
+            $userRoleName = $userRole ? strtolower($userRole) : '';
+            
+            if ($userRoleName === 'viewer') {
+                http_response_code(403);
+                return ['error' => 'Viewer role is read-only. You cannot archive segments.'];
+            }
+            
+            $allowedRoles = ['admin', 'captain', 'barangay administrator', 'system_admin', 'barangay_admin'];
+            if (!$userRole || !in_array($userRoleName, $allowedRoles, true)) {
+                http_response_code(403);
+                return ['error' => 'Insufficient permissions. Only administrators and captains can archive segments.'];
+            }
+        } catch (\Exception $e) {
+            http_response_code(403);
+            return ['error' => 'Access denied: ' . $e->getMessage()];
+        }
+        
+        $id = (int) ($params['id'] ?? 0);
+        $segment = $this->findSegment($id);
+        
+        // Check if is_archived column exists, if not add it
+        try {
+            $colCheck = $this->pdo->query("SHOW COLUMNS FROM `campaign_department_audience_segments` LIKE 'is_archived'")->fetch();
+            if (!$colCheck) {
+                $this->pdo->exec("ALTER TABLE `campaign_department_audience_segments` ADD COLUMN `is_archived` TINYINT(1) DEFAULT 0");
+            }
+        } catch (\PDOException $e) {
+            // Column might already exist
+        }
+        
+        $stmt = $this->pdo->prepare('UPDATE `campaign_department_audience_segments` SET is_archived = 1 WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+        
+        return ['message' => 'Segment archived successfully'];
+    }
+    
+    /**
+     * Restore an archived segment
+     */
+    public function restore(?array $user, array $params = []): array
+    {
+        if (!$user) {
+            http_response_code(401);
+            return ['error' => 'Authentication required'];
+        }
+        
+        $id = (int) ($params['id'] ?? 0);
+        
+        $stmt = $this->pdo->prepare('UPDATE `campaign_department_audience_segments` SET is_archived = 0 WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+        
+        return ['message' => 'Segment restored successfully'];
+    }
+
+    public function publicList(?array $user = null, array $params = []): array
+    {
+        $stmt = $this->pdo->query('
+            SELECT 
+                s.id,
+                s.segment_name,
+                COALESCE(s.qty, 0) AS qty,
+                s.geographic_scope,
+                s.location_reference,
+                s.sector_type,
+                s.risk_level,
+                s.geographies_json,
+                s.basis_of_segmentation,
+                s.created_at,
+                COUNT(m.id) AS member_count
+            FROM `campaign_department_audience_segments` s
+            LEFT JOIN `campaign_department_audience_members` m ON m.segment_id = s.id
+            WHERE COALESCE(s.is_archived, 0) = 0
+            GROUP BY s.id
+            ORDER BY s.created_at DESC
+        ');
+        $segments = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $result = array_map(function ($s) {
+            return [
+                'id' => (int) $s['id'],
+                'segment_name' => $s['segment_name'],
+                'qty' => (int)($s['qty'] ?? 0),
+                'geographic_scope' => $s['geographic_scope'],
+                'location_reference' => $s['location_reference'],
+                'sector_type' => $s['sector_type'],
+                'risk_level' => $s['risk_level'],
+                'locations' => $this->decodeLocations($s['geographies_json'] ?? null, $s['location_reference'] ?? null),
+                'basis_of_segmentation' => $s['basis_of_segmentation'],
+                'member_count' => (int) $s['member_count'],
+                'created_at' => $s['created_at'],
+            ];
+        }, $segments);
+
+        return ['segments' => $result, 'total' => count($result)];
+    }
+
+    public function publicMembers(?array $user = null, array $params = []): array
+    {
+        $stmt = $this->pdo->query('
+            SELECT 
+                m.id,
+                m.full_name,
+                m.sector,
+                m.barangay,
+                m.zone,
+                m.purok,
+                m.contact,
+                m.channel,
+                m.risk_level,
+                m.created_at,
+                s.segment_name,
+                s.id AS segment_id
+            FROM `campaign_department_audience_members` m
+            LEFT JOIN `campaign_department_audience_segments` s ON s.id = m.segment_id
+            WHERE COALESCE(s.is_archived, 0) = 0
+            ORDER BY m.full_name ASC
+        ');
+        $members = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $result = array_map(function ($m) {
+            return [
+                'id' => (int) $m['id'],
+                'full_name' => $m['full_name'],
+                'sector' => $m['sector'],
+                'barangay' => $m['barangay'],
+                'zone' => $m['zone'],
+                'purok' => $m['purok'],
+                'contact' => $m['contact'],
+                'channel' => $m['channel'],
+                'risk_level' => $m['risk_level'],
+                'segment_id' => $m['segment_id'] ? (int) $m['segment_id'] : null,
+                'segment_name' => $m['segment_name'],
+                'created_at' => $m['created_at'],
+            ];
+        }, $members);
+
+        return ['members' => $result, 'total' => count($result)];
+    }
+
+    private function findSegment(int $id): array
+    {
+        $stmt = $this->pdo->prepare('
+            SELECT 
+                id AS segment_id,
+                segment_name,
+                COALESCE(qty, 0) AS qty,
+                geographic_scope,
+                location_reference,
+                sector_type,
+                risk_level,
+                geographies_json,
+                basis_of_segmentation
+            FROM `campaign_department_audience_segments` 
+            WHERE id = :id 
+            LIMIT 1
+        ');
+        $stmt->execute(['id' => $id]);
+        $segment = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$segment) {
+            http_response_code(404);
+            throw new RuntimeException('Segment not found');
+        }
+        return $segment;
+    }
+}
