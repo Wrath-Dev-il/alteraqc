@@ -124,7 +124,7 @@ class EventController
                 $queryParams['filter_date'] = $_GET['date'];
             }
             if (isset($_GET['campaign_id'])) {
-                $where[] = 'e.linked_campaign_id = :filter_campaign_id';
+                $where[] = 'e.campaign_id = :filter_campaign_id';
                 $queryParams['filter_campaign_id'] = (int) $_GET['campaign_id'];
             }
             if (isset($_GET['event_type'])) {
@@ -174,10 +174,13 @@ class EventController
                     e.venue,
                     e.location,
                     e.status as event_status,
+                    e.campaign_id,
+                    e.campaign_id as linked_campaign_id,
+                    e.ends_at,
                     e.created_at,
                     c.title as campaign_title
                 FROM `campaign_department_events` e
-                LEFT JOIN `campaign_department_campaigns` c ON c.id = e.linked_campaign_id
+                LEFT JOIN `campaign_department_campaigns` c ON c.id = e.campaign_id
                 {$whereClause}
                 ORDER BY e.event_date DESC, e.event_time DESC
                 LIMIT 100
@@ -276,7 +279,7 @@ class EventController
                 e.created_at,
                 c.title as campaign_title
             FROM `campaign_department_events` e
-            LEFT JOIN `campaign_department_campaigns` c ON c.id = e.linked_campaign_id
+            LEFT JOIN `campaign_department_campaigns` c ON c.id = e.campaign_id
             LEFT JOIN `campaign_department_audience_segments` a ON a.id = e.target_audience_profile_id
             WHERE e.id = :id
         ');

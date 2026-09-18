@@ -1162,7 +1162,7 @@ async function loadEvents() {
     
     try {
         // Use direct endpoint to bypass routing issues causing 502 errors
-        const eventsUrl = '/public/test-events-direct.php';
+        const eventsUrl = apiBase + '/api/v1/events';
         console.log('Loading events from:', eventsUrl);
         const res = await fetch(eventsUrl, { headers: { 'Authorization': 'Bearer ' + token } });
         
