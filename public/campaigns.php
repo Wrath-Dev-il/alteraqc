@@ -1354,7 +1354,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                         <div class="planner-card">
                             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;"><div><h3><i class="fas fa-coins" style="color:#f59e0b"></i> Budget Breakdown <span class="required-chip">At least 1 item</span></h3><p class="planner-help">The total is synchronized back to the campaign's existing Budget field.</p></div><button type="button" data-planner-edit-action="1" class="btn btn-secondary" onclick="manualAddBudgetRow()"><i class="fas fa-plus"></i> Add Budget Item</button></div>
                             <div class="planner-table-wrap"><table class="planner-table"><thead><tr><th>Item *</th><th>Category</th><th>Qty</th><th>Unit</th><th>Unit Cost</th><th>Days/Sessions</th><th>Funding</th><th>Notes</th><th></th></tr></thead><tbody id="manualBudgetBody"></tbody></table></div>
-                            <div style="text-align:right;margin-top:12px;font-size:16px;font-weight:800;color:#166534;">Total: Ã¢â€šÂ±<span id="manualBudgetTotal">0.00</span></div>
+                            <div style="text-align:right;margin-top:12px;font-size:16px;font-weight:800;color:#166534;">Total: ₱<span id="manualBudgetTotal">0.00</span></div>
                             <input id="budget" type="hidden"><input id="staff_count" type="hidden">
                         </div>
                     </section>
@@ -1514,7 +1514,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                                 <th style="padding: 10px; text-align: left; font-weight: 600;">Item Name *</th>
                                 <th style="padding: 10px; text-align: left; font-weight: 600; width: 120px;">Type *</th>
                                 <th style="padding: 10px; text-align: left; font-weight: 600; width: 80px;">Qty *</th>
-                                <th style="padding: 10px; text-align: left; font-weight: 600; width: 120px;">Unit Cost (Ã¢â€šÂ±) *</th>
+                                <th style="padding: 10px; text-align: left; font-weight: 600; width: 120px;">Unit Cost (₱) *</th>
                                 <th style="padding: 10px; text-align: center; font-weight: 600; width: 60px;">Action</th>
                             </tr>
                         </thead>
@@ -1788,7 +1788,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                         <i class="fas fa-coins" style="color: #16a34a;"></i> TOTAL BUDGET
                         <button onclick="toggleBudgetVisibilityInline()" style="background: none; border: none; cursor: pointer; color: #64748b; padding: 2px;"><i class="fas fa-eye" id="budgetToggleIconInline"></i></button>
                     </h4>
-                    <div id="totalBudgetInline" style="display: none; font-size: 28px; font-weight: 700; color: #166534;">Ã¢â€šÂ±0.00</div>
+                    <div id="totalBudgetInline" style="display: none; font-size: 28px; font-weight: 700; color: #166534;">₱0.00</div>
                     <div id="totalBudgetHiddenInline" style="font-size: 28px; font-weight: 700; color: #64748b;">&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;</div>
                     <div style="margin-top: 8px; font-size: 12px; color: #64748b;" id="budgetBreakdownInline">All campaigns</div>
                 </div>
@@ -1836,7 +1836,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                     Total Budget
                     <button onclick="toggleBudgetCardVisibility('total')" style="background: none; border: none; cursor: pointer; color: #166534; padding: 2px;" title="Show/Hide amount"><i class="fas fa-eye-slash" id="budgetTotalIcon"></i></button>
                 </div>
-                <div id="budgetTotalDisplay" style="font-size: 24px; font-weight: 700; color: #166534; display: none;">Ã¢â€šÂ±0.00</div>
+                <div id="budgetTotalDisplay" style="font-size: 24px; font-weight: 700; color: #166534; display: none;">₱0.00</div>
                 <div id="budgetTotalHidden" style="font-size: 24px; font-weight: 700; color: #166534;">&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;</div>
             </div>
             <div style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border-radius: 12px; padding: 20px; text-align: center;">
@@ -1844,7 +1844,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                     Government Allocated
                     <button onclick="toggleBudgetCardVisibility('government')" style="background: none; border: none; cursor: pointer; color: #1e40af; padding: 2px;" title="Show/Hide amount"><i class="fas fa-eye-slash" id="budgetGovIcon"></i></button>
                 </div>
-                <div id="budgetGovDisplay" style="font-size: 24px; font-weight: 700; color: #1e40af; display: none;">Ã¢â€šÂ±0.00</div>
+                <div id="budgetGovDisplay" style="font-size: 24px; font-weight: 700; color: #1e40af; display: none;">₱0.00</div>
                 <div id="budgetGovHidden" style="font-size: 24px; font-weight: 700; color: #1e40af;">&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;</div>
             </div>
             <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; padding: 20px; text-align: center;">
@@ -1852,7 +1852,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                     Reimbursable
                     <button onclick="toggleBudgetCardVisibility('reimbursable')" style="background: none; border: none; cursor: pointer; color: #92400e; padding: 2px;" title="Show/Hide amount"><i class="fas fa-eye-slash" id="budgetReimbIcon"></i></button>
                 </div>
-                <div id="budgetReimbDisplay" style="font-size: 24px; font-weight: 700; color: #92400e; display: none;">Ã¢â€šÂ±0.00</div>
+                <div id="budgetReimbDisplay" style="font-size: 24px; font-weight: 700; color: #92400e; display: none;">₱0.00</div>
                 <div id="budgetReimbHidden" style="font-size: 24px; font-weight: 700; color: #92400e;">&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;</div>
             </div>
             <div style="background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); border-radius: 12px; padding: 20px; text-align: center;">
@@ -2820,8 +2820,8 @@ function renderAiRecBudgetTabLegacy(body, data) {
             <td style="padding: 6px 10px; font-size: 12px; color: #0f172a;">${escapeHtml(i.item_name)}</td>
             <td style="padding: 6px 10px; font-size: 11px; color: #64748b;">${escapeHtml(i.item_type || '')}</td>
             <td style="padding: 6px 10px; font-size: 12px; color: #0f172a; text-align: right;">${Number(i.quantity || 0).toLocaleString()}</td>
-            <td style="padding: 6px 10px; font-size: 12px; color: #0f172a; text-align: right;">Ã¢â€šÂ±${Number(i.unit_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-            <td style="padding: 6px 10px; font-size: 12px; font-weight: 700; color: #0f172a; text-align: right;">Ã¢â€šÂ±${Number(i.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 6px 10px; font-size: 12px; color: #0f172a; text-align: right;">₱${Number(i.unit_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 6px 10px; font-size: 12px; font-weight: 700; color: #0f172a; text-align: right;">₱${Number(i.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
             <td style="padding: 6px 10px; font-size: 11px; color: #64748b;">${escapeHtml(i.funding_source || '')}</td>
         </tr>
     `).join('') : '<tr><td colspan="6" style="padding: 20px; text-align: center; color: #94a3b8;">No budget items generated yet. Use the Generate action to create budget recommendations.</td></tr>';
@@ -2830,7 +2830,7 @@ function renderAiRecBudgetTabLegacy(body, data) {
         ? budgetSummary.by_funding_source.map(f => `
             <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #e2e8f0; font-size: 12px;">
                 <span style="color: #475569;">${escapeHtml(f.funding_source)}</span>
-                <span style="font-weight: 700; color: #0f172a;">Ã¢â€šÂ±${Number(f.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} (${f.item_count} items)</span>
+                <span style="font-weight: 700; color: #0f172a;">₱${Number(f.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} (${f.item_count} items)</span>
             </div>
         `).join('') : '';
 
@@ -2838,15 +2838,15 @@ function renderAiRecBudgetTabLegacy(body, data) {
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;">
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Estimated</div>
-                <div style="font-size: 16px; font-weight: 800; color: #0f172a;">Ã¢â€šÂ±${estBudget}</div>
+                <div style="font-size: 16px; font-weight: 800; color: #0f172a;">₱${estBudget}</div>
             </div>
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Recommended</div>
-                <div style="font-size: 16px; font-weight: 800; color: #667eea;">Ã¢â€šÂ±${recBudget}</div>
+                <div style="font-size: 16px; font-weight: 800; color: #667eea;">₱${recBudget}</div>
             </div>
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Approved</div>
-                <div style="font-size: 16px; font-weight: 800; color: #16a34a;">Ã¢â€šÂ±${appBudget}</div>
+                <div style="font-size: 16px; font-weight: 800; color: #16a34a;">₱${appBudget}</div>
             </div>
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Status</div>
@@ -3064,7 +3064,7 @@ function renderAiRecScheduleTab(body, data) {
             </div>
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Total Budget</div>
-                <div style="font-size: 14px; font-weight: 800; color: #0f172a;">Ã¢â€šÂ±${Number(schedule.total_budget || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                <div style="font-size: 14px; font-weight: 800; color: #0f172a;">₱${Number(schedule.total_budget || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
             </div>
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Duration</div>
@@ -3146,7 +3146,7 @@ function renderAiRecReportsTab(body, data, rec = {}) {
 
 function aiRecMoney(value) {
     if (value === null || value === undefined || value === '') return 'N/A';
-    return 'Ã¢â€šÂ±' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return '₱' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function aiRecBadge(status) {
@@ -4919,7 +4919,7 @@ function manualRenderReview(){
     const validation=document.getElementById('manualReviewValidation'); if(validation)validation.innerHTML=errors.length?`<div style="background:#fff7ed;border-left:4px solid #f97316;padding:12px;border-radius:8px"><strong style="color:#9a3412">${errors.length} item(s) need attention</strong><ul style="margin:8px 0 0;padding-left:20px">${errors.map(e=>`<li><button type="button" onclick="manualGoToStep(${e.step})" style="border:0;background:none;color:#c2410c;text-decoration:underline;cursor:pointer;padding:0">${manualEscapeHtml(e.msg)}</button></li>`).join('')}</ul></div>`:`<div style="background:#f0fdf4;border-left:4px solid #22c55e;padding:12px;border-radius:8px;color:#166534;font-weight:700"><i class="fas fa-check-circle"></i> Campaign plan is complete and ready to save.</div>`;
     const grid=document.getElementById('manualReviewGrid'); if(!grid)return;
     const totalStaff=plan.participants.reduce((s,p)=>s+Number(p.selected_qty||0),0); const phaseDates=plan.schedule_phases.filter(p=>p.start_date&&p.end_date); const dateRange=phaseDates.length?`${phaseDates.map(p=>p.start_date).sort()[0]} Ã¢â€ â€™ ${phaseDates.map(p=>p.end_date).sort().slice(-1)[0]}`:'Not set';
-    grid.innerHTML=`<div class="review-box"><strong>Overall Summary</strong>${manualEscapeHtml(summary.title||'Untitled')}<br>${manualEscapeHtml(summary.category||'-')}<br>${manualEscapeHtml(summary.description||'-')}</div><div class="review-box"><strong>Reports</strong>${manualPlannerState.reportsExisting.length+manualPlannerState.reportDrafts.length} supporting report(s)</div><div class="review-box"><strong>Locations & Audience</strong>${manualEscapeHtml(summary.geographic_scope||'-')}<br>${manualEscapeHtml(summary.location||'-')}<br>${plan.segment_ids.length} audience segment(s)</div><div class="review-box"><strong>Budget Breakdown</strong>Ã¢â€šÂ±${manualUpdateBudgetTotal().toLocaleString('en-PH',{minimumFractionDigits:2})}<br>${plan.budget_items.length} budget item(s)</div><div class="review-box"><strong>Participants</strong>${totalStaff} staff allocation(s)<br>${plan.participants.length} participant row(s)</div><div class="review-box"><strong>Partners</strong>${plan.partners.length} selected partner(s)</div><div class="review-box"><strong>Date Sprint</strong>${plan.schedule_phases.length} sprint(s)<br>${manualEscapeHtml(dateRange)}</div><div class="review-box"><strong>Workflow</strong>Status remains <b>${manualEscapeHtml(summary.status||'draft')}</b>. Normal approval rules still apply.</div>`;
+    grid.innerHTML=`<div class="review-box"><strong>Overall Summary</strong>${manualEscapeHtml(summary.title||'Untitled')}<br>${manualEscapeHtml(summary.category||'-')}<br>${manualEscapeHtml(summary.description||'-')}</div><div class="review-box"><strong>Reports</strong>${manualPlannerState.reportsExisting.length+manualPlannerState.reportDrafts.length} supporting report(s)</div><div class="review-box"><strong>Locations & Audience</strong>${manualEscapeHtml(summary.geographic_scope||'-')}<br>${manualEscapeHtml(summary.location||'-')}<br>${plan.segment_ids.length} audience segment(s)</div><div class="review-box"><strong>Budget Breakdown</strong>₱${manualUpdateBudgetTotal().toLocaleString('en-PH',{minimumFractionDigits:2})}<br>${plan.budget_items.length} budget item(s)</div><div class="review-box"><strong>Participants</strong>${totalStaff} staff allocation(s)<br>${plan.participants.length} participant row(s)</div><div class="review-box"><strong>Partners</strong>${plan.partners.length} selected partner(s)</div><div class="review-box"><strong>Date Sprint</strong>${plan.schedule_phases.length} sprint(s)<br>${manualEscapeHtml(dateRange)}</div><div class="review-box"><strong>Workflow</strong>Status remains <b>${manualEscapeHtml(summary.status||'draft')}</b>. Normal approval rules still apply.</div>`;
 }
 
 async function manualPersistPlan(complete=false){
@@ -6383,7 +6383,7 @@ function initCalendar() {
             message += `Type: ${extended.type || 'campaign'}\n`;
             if (extended.status) message += `Status: ${extended.status}\n`;
             if (extended.location) message += `Location: ${extended.location}\n`;
-            if (extended.budget) message += `Budget: Ã¢â€šÂ±${parseFloat(extended.budget).toLocaleString()}\n`;
+            if (extended.budget) message += `Budget: ₱${parseFloat(extended.budget).toLocaleString()}\n`;
             message += `Start: ${event.start.toLocaleString()}\n`;
             if (event.end) message += `End: ${event.end.toLocaleString()}`;
             alert(message);
@@ -6479,7 +6479,7 @@ async function loadResources() {
         const campaignBreakdownEl = document.getElementById('campaignBreakdown');
         const materialsEl = document.getElementById('materialsUsed');
         
-        if (totalBudgetEl) totalBudgetEl.textContent = 'Ã¢â€šÂ±' + totalBudget.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (totalBudgetEl) totalBudgetEl.textContent = '₱' + totalBudget.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         if (totalStaffEl) totalStaffEl.textContent = totalStaff;
         if (activeCampaignsEl) activeCampaignsEl.textContent = activeCount;
         
@@ -6649,7 +6649,7 @@ async function loadResourcesInline() {
         const staffBreakdownEl = document.getElementById('staffBreakdownInline');
         const activeBreakdownEl = document.getElementById('activeCampaignsBreakdownInline');
         
-        if (budgetEl) budgetEl.textContent = 'Ã¢â€šÂ±' + totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2});
+        if (budgetEl) budgetEl.textContent = '₱' + totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2});
         if (staffEl) staffEl.textContent = totalStaff;
         if (activeEl) activeEl.textContent = activeCampaigns;
         if (breakdownEl) breakdownEl.textContent = campaigns.length + ' campaigns';
@@ -7757,14 +7757,14 @@ function renderBudgetTable() {
     tbody.innerHTML = '';
     Object.values(groupedByCampaign).forEach(group => {
         const fundingBreakdown = [];
-        if (group.government_total > 0) fundingBreakdown.push(`Gov: Ã¢â€šÂ±${group.government_total.toLocaleString('en-PH', {minimumFractionDigits: 2})}`);
-        if (group.reimbursable_total > 0) fundingBreakdown.push(`Reimb: Ã¢â€šÂ±${group.reimbursable_total.toLocaleString('en-PH', {minimumFractionDigits: 2})}`);
+        if (group.government_total > 0) fundingBreakdown.push(`Gov: ₱${group.government_total.toLocaleString('en-PH', {minimumFractionDigits: 2})}`);
+        if (group.reimbursable_total > 0) fundingBreakdown.push(`Reimb: ₱${group.reimbursable_total.toLocaleString('en-PH', {minimumFractionDigits: 2})}`);
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; font-weight: 600;" title="${group.campaign_title}"><span style="color: #6366f1; font-weight: 700;">#${group.campaign_id}</span> ${group.campaign_title}</td>
             <td><span class="badge draft">${group.items.length} item${group.items.length > 1 ? 's' : ''}</span></td>
-            <td style="font-weight: 700; color: #059669;">Ã¢â€šÂ±${group.total_budget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+            <td style="font-weight: 700; color: #059669;">₱${group.total_budget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
             <td style="font-size: 12px; color: #64748b;">${fundingBreakdown.join('<br>') || '-'}</td>
             <td><span class="badge approved">Active</span></td>
             <td style="white-space: nowrap;">
@@ -7838,8 +7838,8 @@ function viewBudgetDetails(campaignId) {
                 <td>${item.item_name || '-'}</td>
                 <td><span class="badge ${item.item_type === 'material' ? 'scheduled' : 'draft'}">${item.item_type || 'consumable'}</span></td>
                 <td style="text-align: center;">${item.quantity || 0}</td>
-                <td style="text-align: right;">Ã¢â€šÂ±${parseFloat(item.unit_cost || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
-                <td style="text-align: right; font-weight: 600;">Ã¢â€šÂ±${itemTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                <td style="text-align: right;">₱${parseFloat(item.unit_cost || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                <td style="text-align: right; font-weight: 600;">₱${itemTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
                 <td><span class="badge ${fundingClass}">${fundingLabel}</span></td>
             </tr>
         `;
@@ -7856,7 +7856,7 @@ function viewBudgetDetails(campaignId) {
             </div>
             <div style="background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); border-radius: 8px; padding: 16px; margin-bottom: 20px; text-align: center;">
                 <div style="font-size: 12px; color: #166534; font-weight: 600; text-transform: uppercase;">Total Budget</div>
-                <div style="font-size: 28px; font-weight: 700; color: #166534;">Ã¢â€šÂ±${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
+                <div style="font-size: 28px; font-weight: 700; color: #166534;">₱${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
             </div>
             <table class="data-table" style="width: 100%;">
                 <thead>
@@ -8146,7 +8146,7 @@ async function loadArchivedBudgets() {
                 <div style="background: #f8fafc; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <strong>${group.campaign_title}</strong>
-                        <span style="color: #64748b; font-size: 12px; margin-left: 8px;">${group.items.length} item(s) - Ã¢â€šÂ±${group.total.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                        <span style="color: #64748b; font-size: 12px; margin-left: 8px;">${group.items.length} item(s) - ₱${group.total.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
                     </div>
                     <div style="display: flex; gap: 8px;">
                         <button onclick="restoreBudgetItems(${campaignId})" class="btn btn-success" style="padding: 6px 12px; font-size: 12px; background: #10b981; color: white; border: none;">
@@ -8241,7 +8241,7 @@ async function deleteArchivedBudgetItems(campaignId) {
 
 // Update budget summary cards
 function updateBudgetSummary(summary) {
-    const formatCurrency = (val) => 'Ã¢â€šÂ±' + Number(val || 0).toLocaleString('en-PH', {
+    const formatCurrency = (val) => '₱' + Number(val || 0).toLocaleString('en-PH', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     });
@@ -8642,8 +8642,8 @@ async function loadCampaignBudgetBreakdown(campaignId) {
                 <tr>
                     <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9;">${item.item_name || '-'}</td>
                     <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: center;">${item.quantity || 0}</td>
-                    <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: right;">Ã¢â€šÂ±${parseFloat(item.unit_cost || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
-                    <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 600;">Ã¢â€šÂ±${itemTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: right;">₱${parseFloat(item.unit_cost || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 600;">₱${itemTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
                     <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9;"><span style="background: ${item.funding_source === 'government_allocated' ? '#dbeafe' : '#fef3c7'}; color: ${item.funding_source === 'government_allocated' ? '#1e40af' : '#92400e'}; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">${fundingLabel}</span></td>
                 </tr>
             `;
@@ -8653,7 +8653,7 @@ async function loadCampaignBudgetBreakdown(campaignId) {
             <div style="background: #f0fdf4; padding: 16px; border-radius: 10px; border-left: 4px solid #22c55e;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <div style="font-size: 12px; font-weight: 600; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Budget Line Items</div>
-                    <div style="font-size: 16px; font-weight: 700; color: #166534;">Total: Ã¢â€šÂ±${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
+                    <div style="font-size: 16px; font-weight: 700; color: #166534;">Total: ₱${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
                 </div>
                 <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
                     <thead>
@@ -9825,7 +9825,7 @@ function getAIRecommendationsHTML(recommendations) {
             const materials = Object.entries(rec.value);
             valueDisplay = materials.length > 0 ? materials.map(([mat, qty]) => `${mat} (${qty})`).join(', ') : 'None';
         } else if (field === 'budget') {
-            valueDisplay = 'Ã¢â€šÂ±' + parseFloat(rec.value).toLocaleString('en-US', {minimumFractionDigits: 2});
+            valueDisplay = '₱' + parseFloat(rec.value).toLocaleString('en-US', {minimumFractionDigits: 2});
         } else {
             valueDisplay = String(rec.value);
         }
