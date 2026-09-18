@@ -1,4 +1,5 @@
 <?php
+header('Content-Type: text/html; charset=UTF-8');
 $pageTitle = 'Campaign Planning';
 // Custom header setup for sidebar + admin-header layout
 require_once __DIR__ . '/../header/includes/path_helper.php';
@@ -11,11 +12,13 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($pageTitle); ?> - Public Safety Campaign</title>
+    <title><?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($pageTitle); ?> - Public Safety Campaign</title>
     <script>
         // Auth guard - MUST be first script executed
         (function () {
-            const basePath = '<?php echo $basePath; ?>';
+            const basePath = '<?php
+header('Content-Type: text/html; charset=UTF-8'); echo $basePath; ?>';
             
             // Check if we just logged in (URL parameter) - this bypasses Tracking Prevention blocking
             const urlParams = new URLSearchParams(window.location.search);
@@ -72,21 +75,33 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
             checkAuth(0);
         })();
     </script>
-    <link rel="icon" type="image/x-icon" href="<?php echo htmlspecialchars($imgPath . '/favicon.ico'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($cssPath . '/global.css'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($cssPath . '/buttons.css'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($cssPath . '/forms.css'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($cssPath . '/cards.css'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($cssPath . '/content.css'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($basePath . '/sidebar/css/sidebar.css'); ?>">
-    <link rel="stylesheet" href="<?php echo htmlspecialchars($basePath . '/sidebar/css/admin-header.css'); ?>">
+    <link rel="icon" type="image/x-icon" href="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($imgPath . '/favicon.ico'); ?>">
+    <link rel="stylesheet" href="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($cssPath . '/global.css'); ?>">
+    <link rel="stylesheet" href="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($cssPath . '/buttons.css'); ?>">
+    <link rel="stylesheet" href="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($cssPath . '/forms.css'); ?>">
+    <link rel="stylesheet" href="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($cssPath . '/cards.css'); ?>">
+    <link rel="stylesheet" href="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($cssPath . '/content.css'); ?>">
+    <link rel="stylesheet" href="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($basePath . '/sidebar/css/sidebar.css'); ?>">
+    <link rel="stylesheet" href="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($basePath . '/sidebar/css/admin-header.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
-    <script src="<?php echo htmlspecialchars($publicPath . '/js/custom-modals.js'); ?>"></script>
-    <script src="<?php echo htmlspecialchars($publicPath . '/js/modal-replacer.js'); ?>"></script>
-    <script src="<?php echo htmlspecialchars($basePath . '/public/js/viewer-restrictions.js'); ?>"></script>
-    <script src="<?php echo htmlspecialchars($basePath . '/public/js/viewer-restrictions.js'); ?>"></script>
+    <script src="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($publicPath . '/js/custom-modals.js'); ?>"></script>
+    <script src="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($publicPath . '/js/modal-replacer.js'); ?>"></script>
+    <script src="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($basePath . '/public/js/viewer-restrictions.js'); ?>"></script>
+    <script src="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($basePath . '/public/js/viewer-restrictions.js'); ?>"></script>
     <script>
         // Force light theme
         document.documentElement.setAttribute('data-theme', 'light');
@@ -128,8 +143,10 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
     </script>
 </head>
 <body class="module-campaign" data-module="campaigns">
-    <?php include __DIR__ . '/../sidebar/includes/sidebar.php'; ?>
-    <?php include __DIR__ . '/../sidebar/includes/admin-header.php'; ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); include __DIR__ . '/../sidebar/includes/sidebar.php'; ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); include __DIR__ . '/../sidebar/includes/admin-header.php'; ?>
     
     <!-- Main Content Wrapper - accounts for sidebar (280px) and header (70px) -->
     <main class="main-content-wrapper">
@@ -320,7 +337,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
         gap: 6px;
     }
     .form-field label::before {
-        content: 'Ã¢â€“Â¸';
+        content: 'ÃƒÂ¢Ã¢â‚¬â€œÃ‚Â¸';
         color: #4c8a89;
         font-size: 12px;
     }
@@ -453,7 +470,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
         gap: 10px;
     }
     .automl-panel h3::before {
-        content: 'Ã°Å¸Â¤â€“';
+        content: 'ÃƒÂ°Ã…Â¸Ã‚Â¤Ã¢â‚¬â€œ';
         font-size: 24px;
     }
     .automl-panel p {
@@ -644,7 +661,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
         gap: 8px;
     }
     .resource-card h4::before {
-        content: 'Ã°Å¸â€œÅ ';
+        content: 'ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã…Â ';
         font-size: 16px;
     }
     .resource-value {
@@ -669,7 +686,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
         gap: 8px;
     }
     .status-text::before {
-        content: 'Ã¢Å“â€œ';
+        content: 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“';
         font-weight: 700;
     }
     .status-text.success { 
@@ -683,7 +700,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
         border: 1px solid #fca5a5;
     }
     .status-text.error::before {
-        content: 'Ã¢Å“â€”';
+        content: 'ÃƒÂ¢Ã…â€œÃ¢â‚¬â€';
     }
     
     /* Table wrapper for horizontal scrolling */
@@ -1213,6 +1230,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
         <div class="campaign-main">
 
     <?php
+header('Content-Type: text/html; charset=UTF-8');
     // RBAC: $isViewer is already set by block_viewer_access.php (included at top)
     // If Viewer tries to access planning form directly, redirect to list section
     if ($isViewer && isset($_GET['section']) && $_GET['section'] === 'planning-section') {
@@ -1354,7 +1372,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                         <div class="planner-card">
                             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;"><div><h3><i class="fas fa-coins" style="color:#f59e0b"></i> Budget Breakdown <span class="required-chip">At least 1 item</span></h3><p class="planner-help">The total is synchronized back to the campaign's existing Budget field.</p></div><button type="button" data-planner-edit-action="1" class="btn btn-secondary" onclick="manualAddBudgetRow()"><i class="fas fa-plus"></i> Add Budget Item</button></div>
                             <div class="planner-table-wrap"><table class="planner-table"><thead><tr><th>Item *</th><th>Category</th><th>Qty</th><th>Unit</th><th>Unit Cost</th><th>Days/Sessions</th><th>Funding</th><th>Notes</th><th></th></tr></thead><tbody id="manualBudgetBody"></tbody></table></div>
-                            <div style="text-align:right;margin-top:12px;font-size:16px;font-weight:800;color:#166534;">Total: Ã¢â€šÂ±<span id="manualBudgetTotal">0.00</span></div>
+                            <div style="text-align:right;margin-top:12px;font-size:16px;font-weight:800;color:#166534;">Total: ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±<span id="manualBudgetTotal">0.00</span></div>
                             <input id="budget" type="hidden"><input id="staff_count" type="hidden">
                         </div>
                     </section>
@@ -1383,7 +1401,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                     <section class="manual-plan-step" data-step="8">
                         <div class="planner-card">
                             <h3><i class="fas fa-check-double" style="color:#10b981"></i> Review & Submit</h3>
-                            <p class="planner-help">Review Steps 1Ã¢â‚¬â€œ7. Completing this plan does not approve the campaign; it remains in the normal governance workflow.</p>
+                            <p class="planner-help">Review Steps 1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“7. Completing this plan does not approve the campaign; it remains in the normal governance workflow.</p>
                             <div id="manualReviewValidation" style="margin-bottom:14px;"></div>
                             <div class="review-grid" id="manualReviewGrid"></div>
                         </div>
@@ -1406,7 +1424,8 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
     </div><!-- End Modal Overlay -->
 
     <!-- Add Staff Modal -->
-    <?php if (!$isViewer): ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); if (!$isViewer): ?>
     <div id="staffModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10001; overflow-y: auto; padding: 20px;">
         <div class="modal-content" style="background: white; max-width: 550px; margin: 20px auto; border-radius: 16px; box-shadow: 0 25px 50px rgba(0,0,0,0.25); position: relative;">
             <!-- Modal Header -->
@@ -1479,10 +1498,12 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
             </div>
         </div>
     </div>
-    <?php endif; ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); endif; ?>
 
     <!-- Add Budget Line Items Modal -->
-    <?php if (!$isViewer): ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); if (!$isViewer): ?>
     <div id="budgetModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; overflow-y: auto; padding: 20px;">
         <div class="modal-content" style="background: white; max-width: 950px; margin: 20px auto; border-radius: 16px; box-shadow: 0 25px 50px rgba(0,0,0,0.25); position: relative;">
             <!-- Modal Header -->
@@ -1514,7 +1535,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                                 <th style="padding: 10px; text-align: left; font-weight: 600;">Item Name *</th>
                                 <th style="padding: 10px; text-align: left; font-weight: 600; width: 120px;">Type *</th>
                                 <th style="padding: 10px; text-align: left; font-weight: 600; width: 80px;">Qty *</th>
-                                <th style="padding: 10px; text-align: left; font-weight: 600; width: 120px;">Unit Cost (Ã¢â€šÂ±) *</th>
+                                <th style="padding: 10px; text-align: left; font-weight: 600; width: 120px;">Unit Cost (ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±) *</th>
                                 <th style="padding: 10px; text-align: center; font-weight: 600; width: 60px;">Action</th>
                             </tr>
                         </thead>
@@ -1570,10 +1591,12 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
             </div>
         </div>
     </div>
-    <?php endif; ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); endif; ?>
 
     <!-- Smart AI Campaign Recommendations -->
-    <?php if (!$isViewer): // RBAC: Hide AI recommendations for Viewer (management tool) ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); if (!$isViewer): // RBAC: Hide AI recommendations for Viewer (management tool) ?>
     <section class="card" id="automl-section">
             <div class="crime-ai-card" id="aiRecommendationsCard">
                 <div class="crime-ai-toolbar">
@@ -1632,18 +1655,21 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                 </div>
             </div>
     </section>
-    <?php endif; // End RBAC: Hide AI recommendations for Viewer ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); endif; // End RBAC: Hide AI recommendations for Viewer ?>
 
     <!-- Campaigns List - Moved to top -->
     <section class="card" id="list-section">
         <div class="section-header" style="margin-bottom: 20px;">
             <h2 class="section-title analytics-accent">All Campaigns</h2>
             <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                <?php if (!$isViewer): ?>
+                <?php
+header('Content-Type: text/html; charset=UTF-8'); if (!$isViewer): ?>
                 <button class="btn btn-primary" onclick="openPlanCampaignModal()" style="display: flex; align-items: center; gap: 6px;">
                     <i class="fas fa-plus"></i> Plan New Campaign
                 </button>
-                <?php endif; ?>
+                <?php
+header('Content-Type: text/html; charset=UTF-8'); endif; ?>
                 <button class="btn btn-secondary active" onclick="switchCampaignView('list')" id="campaignListViewBtn" style="display: flex; align-items: center; gap: 6px;">
                     <i class="fas fa-list"></i> List
                 </button>
@@ -1788,8 +1814,8 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                         <i class="fas fa-coins" style="color: #16a34a;"></i> TOTAL BUDGET
                         <button onclick="toggleBudgetVisibilityInline()" style="background: none; border: none; cursor: pointer; color: #64748b; padding: 2px;"><i class="fas fa-eye" id="budgetToggleIconInline"></i></button>
                     </h4>
-                    <div id="totalBudgetInline" style="display: none; font-size: 28px; font-weight: 700; color: #166534;">Ã¢â€šÂ±0.00</div>
-                    <div id="totalBudgetHiddenInline" style="font-size: 28px; font-weight: 700; color: #64748b;">Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢</div>
+                    <div id="totalBudgetInline" style="display: none; font-size: 28px; font-weight: 700; color: #166534;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±0.00</div>
+                    <div id="totalBudgetHiddenInline" style="font-size: 28px; font-weight: 700; color: #64748b;">ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢</div>
                     <div style="margin-top: 8px; font-size: 12px; color: #64748b;" id="budgetBreakdownInline">All campaigns</div>
                 </div>
                 <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 20px; border-radius: 12px; border: 1px solid #bfdbfe;">
@@ -1812,10 +1838,11 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
     </section>
 
     <!-- Financial & Budgeting Section -->
-    <?php if (!$isViewer): ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); if (!$isViewer): ?>
     <section class="card" id="budgeting-section">
         <div class="section-header" style="margin-bottom: 20px;">
-            <h2 class="section-title analytics-accent">Ã°Å¸â€™Â° Financial & Budgeting</h2>
+            <h2 class="section-title analytics-accent">ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â° Financial & Budgeting</h2>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button class="btn btn-primary" onclick="openBudgetModal()" style="display: flex; align-items: center; gap: 6px;">
                     <i class="fas fa-plus"></i> Add Budget Line Items
@@ -1836,24 +1863,24 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                     Total Budget
                     <button onclick="toggleBudgetCardVisibility('total')" style="background: none; border: none; cursor: pointer; color: #166534; padding: 2px;" title="Show/Hide amount"><i class="fas fa-eye-slash" id="budgetTotalIcon"></i></button>
                 </div>
-                <div id="budgetTotalDisplay" style="font-size: 24px; font-weight: 700; color: #166534; display: none;">Ã¢â€šÂ±0.00</div>
-                <div id="budgetTotalHidden" style="font-size: 24px; font-weight: 700; color: #166534;">Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢</div>
+                <div id="budgetTotalDisplay" style="font-size: 24px; font-weight: 700; color: #166534; display: none;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±0.00</div>
+                <div id="budgetTotalHidden" style="font-size: 24px; font-weight: 700; color: #166534;">ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢</div>
             </div>
             <div style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border-radius: 12px; padding: 20px; text-align: center;">
                 <div style="font-size: 12px; color: #1e40af; font-weight: 600; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 8px;">
                     Government Allocated
                     <button onclick="toggleBudgetCardVisibility('government')" style="background: none; border: none; cursor: pointer; color: #1e40af; padding: 2px;" title="Show/Hide amount"><i class="fas fa-eye-slash" id="budgetGovIcon"></i></button>
                 </div>
-                <div id="budgetGovDisplay" style="font-size: 24px; font-weight: 700; color: #1e40af; display: none;">Ã¢â€šÂ±0.00</div>
-                <div id="budgetGovHidden" style="font-size: 24px; font-weight: 700; color: #1e40af;">Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢</div>
+                <div id="budgetGovDisplay" style="font-size: 24px; font-weight: 700; color: #1e40af; display: none;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±0.00</div>
+                <div id="budgetGovHidden" style="font-size: 24px; font-weight: 700; color: #1e40af;">ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢</div>
             </div>
             <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; padding: 20px; text-align: center;">
                 <div style="font-size: 12px; color: #92400e; font-weight: 600; text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 8px;">
                     Reimbursable
                     <button onclick="toggleBudgetCardVisibility('reimbursable')" style="background: none; border: none; cursor: pointer; color: #92400e; padding: 2px;" title="Show/Hide amount"><i class="fas fa-eye-slash" id="budgetReimbIcon"></i></button>
                 </div>
-                <div id="budgetReimbDisplay" style="font-size: 24px; font-weight: 700; color: #92400e; display: none;">Ã¢â€šÂ±0.00</div>
-                <div id="budgetReimbHidden" style="font-size: 24px; font-weight: 700; color: #92400e;">Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢</div>
+                <div id="budgetReimbDisplay" style="font-size: 24px; font-weight: 700; color: #92400e; display: none;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±0.00</div>
+                <div id="budgetReimbHidden" style="font-size: 24px; font-weight: 700; color: #92400e;">ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢</div>
             </div>
             <div style="background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); border-radius: 12px; padding: 20px; text-align: center;">
                 <div style="font-size: 12px; color: #7c3aed; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Line Items</div>
@@ -1888,10 +1915,12 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
         </div>
         
     </section>
-    <?php endif; ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); endif; ?>
 
     <!-- Staff Section -->
-    <?php if (!$isViewer): ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); if (!$isViewer): ?>
     <section class="card" id="staff-section">
         <div class="section-header" style="margin-bottom: 20px;">
             <h2 class="section-title analytics-accent"><i class="fas fa-users" style="margin-right: 8px;"></i> Staff</h2>
@@ -1927,7 +1956,8 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
         </div>
         <div id="staffPagination" class="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px;"></div>
     </section>
-    <?php endif; ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); endif; ?>
 
     <!-- Archived Budgets Modal - Outside all sections for proper overlay -->
     <div id="archivedBudgetsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.7); z-index: 999999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
@@ -1946,7 +1976,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
     <section class="card" id="schedule-management-section" style="display:none;">
         <div class="section-header">
             <h2 class="section-title analytics-accent">Schedule Management</h2>
-            <button class="btn btn-secondary" onclick="loadSchedules()">Ã°Å¸â€â€ž Refresh</button>
+            <button class="btn btn-secondary" onclick="loadSchedules()">ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ¢â‚¬Å¾ Refresh</button>
         </div>
         <div class="form-field" style="max-width: 300px; margin-bottom: 16px;">
             <label for="schedule_campaign_id">Campaign ID</label>
@@ -2002,7 +2032,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
                 <div style="margin-top: 8px;">
                     <button type="button" onclick="toggleSegmentHelp()" style="display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; color: #475569; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
                         <i class="fas fa-chevron-down" id="segmentHelpIcon" style="transition: transform 0.2s;"></i>
-                        <span>Ã°Å¸â€™Â¡ How to use</span>
+                        <span>ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¡ How to use</span>
                     </button>
                     <div id="segmentHelpContainer" style="display: none; margin-top: 8px; padding: 12px; background: #f1f5f9; border-radius: 6px; font-size: 12px; color: #475569; line-height: 1.6;">
                         <ul style="margin: 4px 0 0 0; padding-left: 20px;">
@@ -2084,7 +2114,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
             </label>
             <input id="content_campaign_id" type="number" placeholder="Enter campaign ID to view linked content" style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 14px; transition: border-color 0.2s;" onfocus="this.style.borderColor='#667eea';" onblur="this.style.borderColor='#e2e8f0';" onchange="loadCampaignContent()">
             <p style="margin: 8px 0 0 0; color: #94a3b8; font-size: 12px; line-height: 1.5;">
-                Ã°Å¸â€™Â¡ Find campaign IDs in the <strong>All Campaigns</strong> table above. Content linked to campaigns is managed through the <strong>Content module</strong>.
+                ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¡ Find campaign IDs in the <strong>All Campaigns</strong> table above. Content linked to campaigns is managed through the <strong>Content module</strong>.
             </p>
         </div>
         
@@ -2122,8 +2152,10 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js" onload="console.log('FullCalendar script loaded successfully'); if (typeof FullCalendar === 'undefined') { console.warn('FullCalendar global not found after load'); } else { console.log('FullCalendar global found:', typeof FullCalendar); }" onerror="console.error('FullCalendar script failed to load - check network/CDN');"></script>
 <script>
 // Get base path for API calls (path_helper already included in head)
-const basePath = '<?php echo $basePath; ?>';
-const apiBase = '<?php echo $apiPath; ?>';
+const basePath = '<?php
+header('Content-Type: text/html; charset=UTF-8'); echo $basePath; ?>';
+const apiBase = '<?php
+header('Content-Type: text/html; charset=UTF-8'); echo $apiPath; ?>';
 const aiRecommendationsUrl = basePath + '/public/api/ai_recommendations.php';
 console.log('BASE PATH:', basePath);
 
@@ -2820,8 +2852,8 @@ function renderAiRecBudgetTabLegacy(body, data) {
             <td style="padding: 6px 10px; font-size: 12px; color: #0f172a;">${escapeHtml(i.item_name)}</td>
             <td style="padding: 6px 10px; font-size: 11px; color: #64748b;">${escapeHtml(i.item_type || '')}</td>
             <td style="padding: 6px 10px; font-size: 12px; color: #0f172a; text-align: right;">${Number(i.quantity || 0).toLocaleString()}</td>
-            <td style="padding: 6px 10px; font-size: 12px; color: #0f172a; text-align: right;">Ã¢â€šÂ±${Number(i.unit_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-            <td style="padding: 6px 10px; font-size: 12px; font-weight: 700; color: #0f172a; text-align: right;">Ã¢â€šÂ±${Number(i.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 6px 10px; font-size: 12px; color: #0f172a; text-align: right;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${Number(i.unit_cost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 6px 10px; font-size: 12px; font-weight: 700; color: #0f172a; text-align: right;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${Number(i.subtotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
             <td style="padding: 6px 10px; font-size: 11px; color: #64748b;">${escapeHtml(i.funding_source || '')}</td>
         </tr>
     `).join('') : '<tr><td colspan="6" style="padding: 20px; text-align: center; color: #94a3b8;">No budget items generated yet. Use the Generate action to create budget recommendations.</td></tr>';
@@ -2830,7 +2862,7 @@ function renderAiRecBudgetTabLegacy(body, data) {
         ? budgetSummary.by_funding_source.map(f => `
             <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #e2e8f0; font-size: 12px;">
                 <span style="color: #475569;">${escapeHtml(f.funding_source)}</span>
-                <span style="font-weight: 700; color: #0f172a;">Ã¢â€šÂ±${Number(f.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} (${f.item_count} items)</span>
+                <span style="font-weight: 700; color: #0f172a;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${Number(f.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} (${f.item_count} items)</span>
             </div>
         `).join('') : '';
 
@@ -2838,15 +2870,15 @@ function renderAiRecBudgetTabLegacy(body, data) {
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px;">
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Estimated</div>
-                <div style="font-size: 16px; font-weight: 800; color: #0f172a;">Ã¢â€šÂ±${estBudget}</div>
+                <div style="font-size: 16px; font-weight: 800; color: #0f172a;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${estBudget}</div>
             </div>
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Recommended</div>
-                <div style="font-size: 16px; font-weight: 800; color: #667eea;">Ã¢â€šÂ±${recBudget}</div>
+                <div style="font-size: 16px; font-weight: 800; color: #667eea;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${recBudget}</div>
             </div>
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Approved</div>
-                <div style="font-size: 16px; font-weight: 800; color: #16a34a;">Ã¢â€šÂ±${appBudget}</div>
+                <div style="font-size: 16px; font-weight: 800; color: #16a34a;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${appBudget}</div>
             </div>
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Status</div>
@@ -3002,7 +3034,7 @@ function renderAiRecPartnersTab(body, data) {
             <div style="font-size: 11px; color: #15803d; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">
                 <i class="fas fa-lightbulb"></i> New Partner Suggestions (${suggestions.length})
             </div>
-            <div style="font-size: 12px; color: #475569; margin-bottom: 8px; font-style: italic;">Generic capability proposals Ã¢â‚¬â€ no auto-insert into partners table.</div>
+            <div style="font-size: 12px; color: #475569; margin-bottom: 8px; font-style: italic;">Generic capability proposals ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no auto-insert into partners table.</div>
             <div style="max-height: 250px; overflow-y: auto; border: 1px solid #bbf7d0; border-radius: 6px;">
                 <table style="width: 100%; border-collapse: collapse;">
                     <thead>
@@ -3064,7 +3096,7 @@ function renderAiRecScheduleTab(body, data) {
             </div>
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Total Budget</div>
-                <div style="font-size: 14px; font-weight: 800; color: #0f172a;">Ã¢â€šÂ±${Number(schedule.total_budget || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                <div style="font-size: 14px; font-weight: 800; color: #0f172a;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${Number(schedule.total_budget || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
             </div>
             <div style="background: #f8fafc; border-radius: 8px; padding: 12px; border: 1px solid #e2e8f0; text-align: center;">
                 <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Duration</div>
@@ -3146,7 +3178,7 @@ function renderAiRecReportsTab(body, data, rec = {}) {
 
 function aiRecMoney(value) {
     if (value === null || value === undefined || value === '') return 'N/A';
-    return 'Ã¢â€šÂ±' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return 'ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' + Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function aiRecBadge(status) {
@@ -3897,7 +3929,7 @@ function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     
-    const icon = type === 'success' ? 'Ã¢Å“â€œ' : type === 'error' ? 'Ã¢Å“â€¢' : type === 'warning' ? 'Ã¢Å¡Â ' : 'Ã¢â€žÂ¹';
+    const icon = type === 'success' ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“' : type === 'error' ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¢' : type === 'warning' ? 'ÃƒÂ¢Ã…Â¡Ã‚Â ' : 'ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¹';
     toast.innerHTML = `<span style="font-size: 18px;">${icon}</span><span>${message}</span>`;
     
     container.appendChild(toast);
@@ -4217,19 +4249,19 @@ function canEditCampaign(campaignStatus) {
     return false;
 }
 
-// Check if user can approve campaigns (Draft Ã¢â€ â€™ Pending or Pending Ã¢â€ â€™ Approved)
+// Check if user can approve campaigns (Draft ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Pending or Pending ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Approved)
 function canApproveCampaign(campaignStatus) {
     if (isViewer() || isStaff() || isKagawad()) return false;
     if (isAdmin()) return true;
     
     const status = (campaignStatus || '').toLowerCase();
     
-    // Secretary: Can forward Draft Ã¢â€ â€™ Pending (not final approval)
+    // Secretary: Can forward Draft ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Pending (not final approval)
     if (isSecretary()) {
         return status === 'draft';
     }
     
-    // Captain: Can approve Pending Ã¢â€ â€™ Approved (final authority)
+    // Captain: Can approve Pending ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Approved (final authority)
     if (isCaptain()) {
         return status === 'pending';
     }
@@ -4386,7 +4418,7 @@ const SAMPLE_BARANGAY_ZONES = [
     'Teachers Village East',
     'Teachers Village West',
     'Araneta City Cubao Area',
-    'KamiasÃ¢â‚¬â€œE. Rodriguez Area',
+    'KamiasÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“E. Rodriguez Area',
     'Balara Filters Area',
     'Payatas A Proper',
     'Payatas B Proper',
@@ -4496,7 +4528,7 @@ function initMultiSelectEnhanced(selectId, options = {}) {
             tag.className = 'multi-select-tag';
             tag.innerHTML = `
                 <span>${option.textContent}</span>
-                <span class="multi-select-tag-remove" data-value="${option.value}">Ãƒâ€”</span>
+                <span class="multi-select-tag-remove" data-value="${option.value}">ÃƒÆ’Ã¢â‚¬â€</span>
             `;
             tag.querySelector('.multi-select-tag-remove').addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -4671,8 +4703,8 @@ function manualPopulateReferenceOptions() {
         const selected = manualSelectedValues('manual_target_segments');
         segmentSelect.innerHTML = (manualPlannerState.options.audience_segments || []).map(s => {
             const archived = Number(s.is_archived || 0) === 1 ? ' [Archived]' : '';
-            const detail = [s.sector_type, s.location_reference].filter(Boolean).join(' Ã¢â‚¬Â¢ ');
-            return `<option value="${Number(s.id)}">${manualEscapeHtml(s.segment_name)}${archived}${detail ? ' Ã¢â‚¬â€ ' + manualEscapeHtml(detail) : ''}</option>`;
+            const detail = [s.sector_type, s.location_reference].filter(Boolean).join(' ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ ');
+            return `<option value="${Number(s.id)}">${manualEscapeHtml(s.segment_name)}${archived}${detail ? ' ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ' + manualEscapeHtml(detail) : ''}</option>`;
         }).join('');
         manualSelectValues('manual_target_segments', selected);
     }
@@ -4775,16 +4807,16 @@ function manualApplyMode() {
 }
 
 function manualStaffOptions(selected = '') {
-    return '<option value="">Select staff...</option>' + (manualPlannerState.options.reference_staff || []).map(s => `<option value="${Number(s.id)}" ${String(s.id)===String(selected)?'selected':''}>${manualEscapeHtml(s.name)} Ã¢â‚¬â€ ${manualEscapeHtml(s.role || 'Staff')} (QTY ${Number(s.qty || 1)})</option>`).join('');
+    return '<option value="">Select staff...</option>' + (manualPlannerState.options.reference_staff || []).map(s => `<option value="${Number(s.id)}" ${String(s.id)===String(selected)?'selected':''}>${manualEscapeHtml(s.name)} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${manualEscapeHtml(s.role || 'Staff')} (QTY ${Number(s.qty || 1)})</option>`).join('');
 }
 function manualPartnerOptions(selected = '') {
-    return '<option value="">Select partner...</option>' + (manualPlannerState.options.available_partners || []).map(p => `<option value="${Number(p.id)}" ${String(p.id)===String(selected)?'selected':''}>${manualEscapeHtml(p.name)} Ã¢â‚¬â€ ${manualEscapeHtml(p.organization_type || 'partner')}</option>`).join('');
+    return '<option value="">Select partner...</option>' + (manualPlannerState.options.available_partners || []).map(p => `<option value="${Number(p.id)}" ${String(p.id)===String(selected)?'selected':''}>${manualEscapeHtml(p.name)} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${manualEscapeHtml(p.organization_type || 'partner')}</option>`).join('');
 }
 
 function manualAddBudgetRow(item = {}) {
     const body = document.getElementById('manualBudgetBody'); if (!body) return;
     const tr = document.createElement('tr'); tr.className = 'manual-budget-row';
-    tr.innerHTML = `<td><input class="mb-name" value="${manualEscapeHtml(item.item_name || '')}" placeholder="Item"></td><td><input class="mb-category" value="${manualEscapeHtml(item.category || '')}" placeholder="Category"></td><td><input class="mb-qty" type="number" min="1" value="${Number(item.quantity || 1)}" oninput="manualUpdateBudgetTotal()"></td><td><input class="mb-unit" value="${manualEscapeHtml(item.unit_label || '')}" placeholder="pcs"></td><td><input class="mb-cost" type="number" min="0" step="0.01" value="${Number(item.unit_cost || 0)}" oninput="manualUpdateBudgetTotal()"></td><td><input class="mb-sessions" type="number" min="1" value="${Number(item.sessions_or_days || 1)}" oninput="manualUpdateBudgetTotal()"></td><td><select class="mb-funding"><option value="government_allocated" ${item.funding_source==='government_allocated'?'selected':''}>Government Allocated</option><option value="reimbursable" ${item.funding_source==='reimbursable'?'selected':''}>Reimbursable</option><option value="other" ${item.funding_source==='other'?'selected':''}>Other</option></select></td><td><textarea class="mb-notes" rows="1">${manualEscapeHtml(item.notes || '')}</textarea></td><td><button type="button" data-planner-edit-action="1" class="btn btn-danger" onclick="this.closest('tr').remove();manualUpdateBudgetTotal();" style="padding:6px 8px">Ãƒâ€”</button></td>`;
+    tr.innerHTML = `<td><input class="mb-name" value="${manualEscapeHtml(item.item_name || '')}" placeholder="Item"></td><td><input class="mb-category" value="${manualEscapeHtml(item.category || '')}" placeholder="Category"></td><td><input class="mb-qty" type="number" min="1" value="${Number(item.quantity || 1)}" oninput="manualUpdateBudgetTotal()"></td><td><input class="mb-unit" value="${manualEscapeHtml(item.unit_label || '')}" placeholder="pcs"></td><td><input class="mb-cost" type="number" min="0" step="0.01" value="${Number(item.unit_cost || 0)}" oninput="manualUpdateBudgetTotal()"></td><td><input class="mb-sessions" type="number" min="1" value="${Number(item.sessions_or_days || 1)}" oninput="manualUpdateBudgetTotal()"></td><td><select class="mb-funding"><option value="government_allocated" ${item.funding_source==='government_allocated'?'selected':''}>Government Allocated</option><option value="reimbursable" ${item.funding_source==='reimbursable'?'selected':''}>Reimbursable</option><option value="other" ${item.funding_source==='other'?'selected':''}>Other</option></select></td><td><textarea class="mb-notes" rows="1">${manualEscapeHtml(item.notes || '')}</textarea></td><td><button type="button" data-planner-edit-action="1" class="btn btn-danger" onclick="this.closest('tr').remove();manualUpdateBudgetTotal();" style="padding:6px 8px">ÃƒÆ’Ã¢â‚¬â€</button></td>`;
     body.appendChild(tr); manualUpdateBudgetTotal(); manualApplyMode();
 }
 function manualCollectBudget() {
@@ -4809,7 +4841,7 @@ function manualAddParticipantRow(item = {}) {
     const body = document.getElementById('manualParticipantsBody'); if (!body) return;
     const staff = (manualPlannerState.options.reference_staff || []).find(s => String(s.id)===String(item.staff_id));
     const tr = document.createElement('tr'); tr.className='manual-participant-row';
-    tr.innerHTML=`<td><select class="mp-staff" onchange="manualParticipantStaffChanged(this)">${manualStaffOptions(item.staff_id || '')}</select></td><td class="mp-available">${staff?Number(staff.qty||1):'-'}</td><td><input class="mp-qty" type="number" min="1" max="${staff?Number(staff.qty||1):1}" value="${Number(item.selected_qty||1)}"></td><td><input class="mp-activity" value="${manualEscapeHtml(item.assigned_activity||'')}"></td><td><input class="mp-location" value="${manualEscapeHtml(item.deployment_location||'')}"></td><td><textarea class="mp-notes" rows="1">${manualEscapeHtml(item.notes||'')}</textarea></td><td><button type="button" data-planner-edit-action="1" class="btn btn-danger" onclick="this.closest('tr').remove();" style="padding:6px 8px">Ãƒâ€”</button></td>`;
+    tr.innerHTML=`<td><select class="mp-staff" onchange="manualParticipantStaffChanged(this)">${manualStaffOptions(item.staff_id || '')}</select></td><td class="mp-available">${staff?Number(staff.qty||1):'-'}</td><td><input class="mp-qty" type="number" min="1" max="${staff?Number(staff.qty||1):1}" value="${Number(item.selected_qty||1)}"></td><td><input class="mp-activity" value="${manualEscapeHtml(item.assigned_activity||'')}"></td><td><input class="mp-location" value="${manualEscapeHtml(item.deployment_location||'')}"></td><td><textarea class="mp-notes" rows="1">${manualEscapeHtml(item.notes||'')}</textarea></td><td><button type="button" data-planner-edit-action="1" class="btn btn-danger" onclick="this.closest('tr').remove();" style="padding:6px 8px">ÃƒÆ’Ã¢â‚¬â€</button></td>`;
     body.appendChild(tr); manualApplyMode();
 }
 function manualCollectParticipants(){return Array.from(document.querySelectorAll('.manual-participant-row')).map(r=>({staff_id:Number(r.querySelector('.mp-staff').value||0),selected_qty:Number(r.querySelector('.mp-qty').value||1),assigned_activity:r.querySelector('.mp-activity').value.trim(),deployment_location:r.querySelector('.mp-location').value.trim(),notes:r.querySelector('.mp-notes').value.trim()})).filter(x=>x.staff_id>0);}
@@ -4817,7 +4849,7 @@ function manualCollectParticipants(){return Array.from(document.querySelectorAll
 function manualAddPartnerRow(item = {}) {
     const body=document.getElementById('manualPartnersBody'); if(!body)return;
     const tr=document.createElement('tr'); tr.className='manual-partner-row';
-    tr.innerHTML=`<td><select class="mpar-partner">${manualPartnerOptions(item.partner_id||'')}</select></td><td><select class="mpar-type"><option value="collaboration" ${item.engagement_type==='collaboration'?'selected':''}>Collaboration</option><option value="co_host" ${item.engagement_type==='co_host'?'selected':''}>Co-host</option><option value="resource_sharing" ${item.engagement_type==='resource_sharing'?'selected':''}>Resource Sharing</option><option value="training_provider" ${item.engagement_type==='training_provider'?'selected':''}>Training Provider</option><option value="coordination" ${item.engagement_type==='coordination'?'selected':''}>Coordination</option></select></td><td><input class="mpar-role" value="${manualEscapeHtml(item.role||'')}"></td><td><textarea class="mpar-notes" rows="1">${manualEscapeHtml(item.notes||'')}</textarea></td><td><button type="button" data-planner-edit-action="1" class="btn btn-danger" onclick="this.closest('tr').remove();" style="padding:6px 8px">Ãƒâ€”</button></td>`;
+    tr.innerHTML=`<td><select class="mpar-partner">${manualPartnerOptions(item.partner_id||'')}</select></td><td><select class="mpar-type"><option value="collaboration" ${item.engagement_type==='collaboration'?'selected':''}>Collaboration</option><option value="co_host" ${item.engagement_type==='co_host'?'selected':''}>Co-host</option><option value="resource_sharing" ${item.engagement_type==='resource_sharing'?'selected':''}>Resource Sharing</option><option value="training_provider" ${item.engagement_type==='training_provider'?'selected':''}>Training Provider</option><option value="coordination" ${item.engagement_type==='coordination'?'selected':''}>Coordination</option></select></td><td><input class="mpar-role" value="${manualEscapeHtml(item.role||'')}"></td><td><textarea class="mpar-notes" rows="1">${manualEscapeHtml(item.notes||'')}</textarea></td><td><button type="button" data-planner-edit-action="1" class="btn btn-danger" onclick="this.closest('tr').remove();" style="padding:6px 8px">ÃƒÆ’Ã¢â‚¬â€</button></td>`;
     body.appendChild(tr); manualApplyMode();
 }
 function manualCollectPartners(){return Array.from(document.querySelectorAll('.manual-partner-row')).map(r=>({partner_id:Number(r.querySelector('.mpar-partner').value||0),engagement_type:r.querySelector('.mpar-type').value,role:r.querySelector('.mpar-role').value.trim(),notes:r.querySelector('.mpar-notes').value.trim()})).filter(x=>x.partner_id>0);}
@@ -4829,7 +4861,7 @@ function manualAddPhaseRow(item = {}) {
     const activities=Array.isArray(item.activities)?item.activities.join('\n'):(item.activities||'');
     const locations=Array.isArray(item.locations)?item.locations.join('\n'):(item.locations||'');
     const tr=document.createElement('tr'); tr.className='manual-phase-row';
-    tr.innerHTML=`<td><input class="mph-num" type="number" min="1" value="${sprint}" style="width:60px"></td><td><input class="mph-title" value="${manualEscapeHtml(item.sprint_title||'')}"></td><td><input class="mph-start" type="date" value="${manualEscapeHtml(item.start_date||'')}"></td><td><input class="mph-end" type="date" value="${manualEscapeHtml(item.end_date||'')}"></td><td><textarea class="mph-objectives" rows="2">${manualEscapeHtml(item.objectives||'')}</textarea></td><td><textarea class="mph-activities" rows="2" placeholder="One per line">${manualEscapeHtml(activities)}</textarea></td><td><textarea class="mph-locations" rows="2" placeholder="One per line">${manualEscapeHtml(locations)}</textarea></td><td><input class="mph-budget" type="number" min="0" step="0.01" value="${Number(item.phase_budget||0)}"></td><td><textarea class="mph-outputs" rows="2">${manualEscapeHtml(item.outputs||'')}</textarea></td><td><button type="button" data-planner-edit-action="1" class="btn btn-danger" onclick="this.closest('tr').remove();manualRenumberPhases();" style="padding:6px 8px">Ãƒâ€”</button></td>`;
+    tr.innerHTML=`<td><input class="mph-num" type="number" min="1" value="${sprint}" style="width:60px"></td><td><input class="mph-title" value="${manualEscapeHtml(item.sprint_title||'')}"></td><td><input class="mph-start" type="date" value="${manualEscapeHtml(item.start_date||'')}"></td><td><input class="mph-end" type="date" value="${manualEscapeHtml(item.end_date||'')}"></td><td><textarea class="mph-objectives" rows="2">${manualEscapeHtml(item.objectives||'')}</textarea></td><td><textarea class="mph-activities" rows="2" placeholder="One per line">${manualEscapeHtml(activities)}</textarea></td><td><textarea class="mph-locations" rows="2" placeholder="One per line">${manualEscapeHtml(locations)}</textarea></td><td><input class="mph-budget" type="number" min="0" step="0.01" value="${Number(item.phase_budget||0)}"></td><td><textarea class="mph-outputs" rows="2">${manualEscapeHtml(item.outputs||'')}</textarea></td><td><button type="button" data-planner-edit-action="1" class="btn btn-danger" onclick="this.closest('tr').remove();manualRenumberPhases();" style="padding:6px 8px">ÃƒÆ’Ã¢â‚¬â€</button></td>`;
     body.appendChild(tr); manualApplyMode();
 }
 function manualRenumberPhases(){Array.from(document.querySelectorAll('.manual-phase-row')).forEach((r,i)=>{const n=r.querySelector('.mph-num');if(n)n.value=i+1;});}
@@ -4918,8 +4950,8 @@ function manualRenderReview(){
     const summary=manualCollectSummary(),plan=manualCollectPlanningPayload(),errors=manualValidationErrors();
     const validation=document.getElementById('manualReviewValidation'); if(validation)validation.innerHTML=errors.length?`<div style="background:#fff7ed;border-left:4px solid #f97316;padding:12px;border-radius:8px"><strong style="color:#9a3412">${errors.length} item(s) need attention</strong><ul style="margin:8px 0 0;padding-left:20px">${errors.map(e=>`<li><button type="button" onclick="manualGoToStep(${e.step})" style="border:0;background:none;color:#c2410c;text-decoration:underline;cursor:pointer;padding:0">${manualEscapeHtml(e.msg)}</button></li>`).join('')}</ul></div>`:`<div style="background:#f0fdf4;border-left:4px solid #22c55e;padding:12px;border-radius:8px;color:#166534;font-weight:700"><i class="fas fa-check-circle"></i> Campaign plan is complete and ready to save.</div>`;
     const grid=document.getElementById('manualReviewGrid'); if(!grid)return;
-    const totalStaff=plan.participants.reduce((s,p)=>s+Number(p.selected_qty||0),0); const phaseDates=plan.schedule_phases.filter(p=>p.start_date&&p.end_date); const dateRange=phaseDates.length?`${phaseDates.map(p=>p.start_date).sort()[0]} Ã¢â€ â€™ ${phaseDates.map(p=>p.end_date).sort().slice(-1)[0]}`:'Not set';
-    grid.innerHTML=`<div class="review-box"><strong>Overall Summary</strong>${manualEscapeHtml(summary.title||'Untitled')}<br>${manualEscapeHtml(summary.category||'-')}<br>${manualEscapeHtml(summary.description||'-')}</div><div class="review-box"><strong>Reports</strong>${manualPlannerState.reportsExisting.length+manualPlannerState.reportDrafts.length} supporting report(s)</div><div class="review-box"><strong>Locations & Audience</strong>${manualEscapeHtml(summary.geographic_scope||'-')}<br>${manualEscapeHtml(summary.location||'-')}<br>${plan.segment_ids.length} audience segment(s)</div><div class="review-box"><strong>Budget Breakdown</strong>Ã¢â€šÂ±${manualUpdateBudgetTotal().toLocaleString('en-PH',{minimumFractionDigits:2})}<br>${plan.budget_items.length} budget item(s)</div><div class="review-box"><strong>Participants</strong>${totalStaff} staff allocation(s)<br>${plan.participants.length} participant row(s)</div><div class="review-box"><strong>Partners</strong>${plan.partners.length} selected partner(s)</div><div class="review-box"><strong>Date Sprint</strong>${plan.schedule_phases.length} sprint(s)<br>${manualEscapeHtml(dateRange)}</div><div class="review-box"><strong>Workflow</strong>Status remains <b>${manualEscapeHtml(summary.status||'draft')}</b>. Normal approval rules still apply.</div>`;
+    const totalStaff=plan.participants.reduce((s,p)=>s+Number(p.selected_qty||0),0); const phaseDates=plan.schedule_phases.filter(p=>p.start_date&&p.end_date); const dateRange=phaseDates.length?`${phaseDates.map(p=>p.start_date).sort()[0]} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${phaseDates.map(p=>p.end_date).sort().slice(-1)[0]}`:'Not set';
+    grid.innerHTML=`<div class="review-box"><strong>Overall Summary</strong>${manualEscapeHtml(summary.title||'Untitled')}<br>${manualEscapeHtml(summary.category||'-')}<br>${manualEscapeHtml(summary.description||'-')}</div><div class="review-box"><strong>Reports</strong>${manualPlannerState.reportsExisting.length+manualPlannerState.reportDrafts.length} supporting report(s)</div><div class="review-box"><strong>Locations & Audience</strong>${manualEscapeHtml(summary.geographic_scope||'-')}<br>${manualEscapeHtml(summary.location||'-')}<br>${plan.segment_ids.length} audience segment(s)</div><div class="review-box"><strong>Budget Breakdown</strong>ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${manualUpdateBudgetTotal().toLocaleString('en-PH',{minimumFractionDigits:2})}<br>${plan.budget_items.length} budget item(s)</div><div class="review-box"><strong>Participants</strong>${totalStaff} staff allocation(s)<br>${plan.participants.length} participant row(s)</div><div class="review-box"><strong>Partners</strong>${plan.partners.length} selected partner(s)</div><div class="review-box"><strong>Date Sprint</strong>${plan.schedule_phases.length} sprint(s)<br>${manualEscapeHtml(dateRange)}</div><div class="review-box"><strong>Workflow</strong>Status remains <b>${manualEscapeHtml(summary.status||'draft')}</b>. Normal approval rules still apply.</div>`;
 }
 
 async function manualPersistPlan(complete=false){
@@ -5045,7 +5077,7 @@ async function refreshAutoMLCampaigns() {
     if (refreshBtn) {
         refreshBtn.disabled = true;
         refreshBtn.style.opacity = '0.6';
-        refreshBtn.innerHTML = '<span>Ã¢ÂÂ³</span><span>Loading...</span>';
+        refreshBtn.innerHTML = '<span>ÃƒÂ¢Ã‚ÂÃ‚Â³</span><span>Loading...</span>';
     }
     
     if (statusEl) {
@@ -5077,7 +5109,7 @@ async function refreshAutoMLCampaigns() {
         if (refreshBtn) {
             refreshBtn.disabled = false;
             refreshBtn.style.opacity = '1';
-            refreshBtn.innerHTML = '<span>Ã°Å¸â€â€ž</span><span>Refresh</span>';
+            refreshBtn.innerHTML = '<span>ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ¢â‚¬Å¾</span><span>Refresh</span>';
         }
     }
 }
@@ -5124,7 +5156,7 @@ function handleGetPredictionClick(event) {
         resultDiv.style.display = 'block';
         resultDiv.style.visibility = 'visible';
         resultDiv.style.opacity = '1';
-        resultDiv.innerHTML = '<div style="text-align:center; padding:20px; color: white; background: rgba(0,0,0,0.3); border-radius: 8px;">Ã¢ÂÂ³ Processing request...</div>';
+        resultDiv.innerHTML = '<div style="text-align:center; padding:20px; color: white; background: rgba(0,0,0,0.3); border-radius: 8px;">ÃƒÂ¢Ã‚ÂÃ‚Â³ Processing request...</div>';
         console.log('handleGetPredictionClick() - Result div made visible');
         // Hide empty state
         if (emptyState) {
@@ -5146,7 +5178,7 @@ function handleGetPredictionClick(event) {
                     console.error('getAutoMLPrediction() promise rejected:', err);
                     if (resultDiv) {
                         resultDiv.innerHTML = `<div style="color: #fee2e2; padding: 16px; background: rgba(254, 226, 226, 0.1); border-radius: 8px;">
-                            <strong>Ã¢ÂÅ’ Error:</strong> ${err.message || 'Unknown error'}
+                            <strong>ÃƒÂ¢Ã‚ÂÃ…â€™ Error:</strong> ${err.message || 'Unknown error'}
                         </div>`;
                     }
                 });
@@ -5159,7 +5191,7 @@ function handleGetPredictionClick(event) {
                     console.error('window.getAutoMLPrediction() promise rejected:', err);
                     if (resultDiv) {
                         resultDiv.innerHTML = `<div style="color: #fee2e2; padding: 16px; background: rgba(254, 226, 226, 0.1); border-radius: 8px;">
-                            <strong>Ã¢ÂÅ’ Error:</strong> ${err.message || 'Unknown error'}
+                            <strong>ÃƒÂ¢Ã‚ÂÃ…â€™ Error:</strong> ${err.message || 'Unknown error'}
                         </div>`;
                     }
                 });
@@ -5173,7 +5205,7 @@ function handleGetPredictionClick(event) {
                 window_handleGetPredictionClick: typeof window.handleGetPredictionClick
             });
             if (resultDiv) {
-                resultDiv.innerHTML = '<div style="color: #fee2e2; padding: 16px; background: rgba(254, 226, 226, 0.1); border-radius: 8px;"><strong>Ã¢ÂÅ’ Error:</strong> Prediction function not found. Please refresh the page.</div>';
+                resultDiv.innerHTML = '<div style="color: #fee2e2; padding: 16px; background: rgba(254, 226, 226, 0.1); border-radius: 8px;"><strong>ÃƒÂ¢Ã‚ÂÃ…â€™ Error:</strong> Prediction function not found. Please refresh the page.</div>';
             } else {
                 alert('Error: Prediction function not found. Please refresh the page.');
             }
@@ -5181,7 +5213,7 @@ function handleGetPredictionClick(event) {
     } catch (err) {
         console.error('Error calling getAutoMLPrediction:', err);
         if (resultDiv) {
-            resultDiv.innerHTML = `<div style="color: #fee2e2; padding: 16px; background: rgba(254, 226, 226, 0.1); border-radius: 8px;"><strong>Ã¢ÂÅ’ Error:</strong> ${err.message || 'Unknown error'}</div>`;
+            resultDiv.innerHTML = `<div style="color: #fee2e2; padding: 16px; background: rgba(254, 226, 226, 0.1); border-radius: 8px;"><strong>ÃƒÂ¢Ã‚ÂÃ…â€™ Error:</strong> ${err.message || 'Unknown error'}</div>`;
         } else {
             alert('Error: ' + err.message);
         }
@@ -5377,7 +5409,7 @@ async function getAutoMLPrediction() {
         if (getPredictionBtn) {
             getPredictionBtn.disabled = false;
             getPredictionBtn.style.opacity = '1';
-            getPredictionBtn.innerHTML = 'Ã°Å¸â€Â® Get Prediction';
+            getPredictionBtn.innerHTML = 'ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ‚Â® Get Prediction';
         }
         return;
     }
@@ -5386,7 +5418,7 @@ async function getAutoMLPrediction() {
     if (getPredictionBtn) {
         getPredictionBtn.disabled = true;
         getPredictionBtn.style.opacity = '0.6';
-        getPredictionBtn.innerHTML = 'Ã¢ÂÂ³ Processing...';
+        getPredictionBtn.innerHTML = 'ÃƒÂ¢Ã‚ÂÃ‚Â³ Processing...';
         getPredictionBtn.style.cursor = 'wait';
         console.log('getAutoMLPrediction() - Button disabled, starting request...');
     }
@@ -5410,7 +5442,7 @@ async function getAutoMLPrediction() {
     console.log('getAutoMLPrediction() - Result div element:', resultDiv);
     console.log('getAutoMLPrediction() - Result div computed style:', window.getComputedStyle(resultDiv).display);
     
-    resultDiv.innerHTML = '<div style="text-align:center; padding:20px; color: white; background: rgba(0,0,0,0.3); border-radius: 8px;">Ã¢ÂÂ³ Loading prediction from real-time data...</div>';
+    resultDiv.innerHTML = '<div style="text-align:center; padding:20px; color: white; background: rgba(0,0,0,0.3); border-radius: 8px;">ÃƒÂ¢Ã‚ÂÃ‚Â³ Loading prediction from real-time data...</div>';
     
     // Force a reflow to ensure display change takes effect
     resultDiv.offsetHeight;
@@ -5460,7 +5492,7 @@ async function getAutoMLPrediction() {
             }
             console.error('getAutoMLPrediction() - API error:', res.status, errorData);
             resultDiv.innerHTML = `<div class="prediction-item" style="color: #fee2e2; border-color: #fca5a5; background: rgba(254, 226, 226, 0.1); padding: 16px; border-radius: 8px;">
-                <strong>Ã¢ÂÅ’ Error:</strong>
+                <strong>ÃƒÂ¢Ã‚ÂÃ…â€™ Error:</strong>
                 <span style="display: block; margin-top: 8px;">${errorData.error || `Failed to get prediction (HTTP ${res.status})`}</span>
                 <p style="margin-top: 12px; font-size: 11px; opacity: 0.7;">Check the browser console (F12) for more details.</p>
             </div>`;
@@ -5468,7 +5500,7 @@ async function getAutoMLPrediction() {
             if (getPredictionBtn) {
                 getPredictionBtn.disabled = false;
                 getPredictionBtn.style.opacity = '1';
-                getPredictionBtn.innerHTML = 'Ã°Å¸â€Â® Get Prediction';
+                getPredictionBtn.innerHTML = 'ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ‚Â® Get Prediction';
                 getPredictionBtn.style.cursor = 'pointer';
             }
             return;
@@ -5499,20 +5531,20 @@ async function getAutoMLPrediction() {
         let modelStatusBadge = '';
         if (modelSource === 'google_automl') {
             modelSourceDisplay = 'Google AutoML';
-            modelStatusBadge = '<span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Ã¢Å“â€œ Active</span>';
+            modelStatusBadge = '<span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Active</span>';
         } else if (modelSource === 'heuristic_with_history') {
             modelSourceDisplay = 'Heuristic (with historical data)';
             if (automlConfigured === false) {
-                modelStatusBadge = '<span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Ã¢Å¡Â  Not Configured</span>';
+                modelStatusBadge = '<span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">ÃƒÂ¢Ã…Â¡Ã‚Â  Not Configured</span>';
             } else if (fallbackReason) {
-                modelStatusBadge = '<span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Ã¢Å¡Â  Fallback</span>';
+                modelStatusBadge = '<span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">ÃƒÂ¢Ã…Â¡Ã‚Â  Fallback</span>';
             }
         } else {
             modelSourceDisplay = 'Heuristic (fallback)';
             if (automlConfigured === false) {
-                modelStatusBadge = '<span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Ã¢Å¡Â  Not Configured</span>';
+                modelStatusBadge = '<span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">ÃƒÂ¢Ã…Â¡Ã‚Â  Not Configured</span>';
             } else if (fallbackReason) {
-                modelStatusBadge = '<span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Ã¢Å¡Â  Fallback</span>';
+                modelStatusBadge = '<span style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">ÃƒÂ¢Ã…Â¡Ã‚Â  Fallback</span>';
             }
         }
         
@@ -5540,14 +5572,14 @@ async function getAutoMLPrediction() {
         if (automlConfigured === false) {
             configNotice = `
             <div class="prediction-item" style="background: rgba(245, 158, 11, 0.1); border-color: #f59e0b; margin-top: 12px;">
-                <strong>Ã¢Å¡Â Ã¯Â¸Â Notice:</strong>
+                <strong>ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Notice:</strong>
                 <span style="font-size: 13px;">Google AutoML is not configured. Using heuristic prediction. To enable Google AutoML, set GOOGLE_AUTOML_ENDPOINT and GOOGLE_AUTOML_API_KEY environment variables.</span>
             </div>
             `;
         } else if (fallbackReason) {
             configNotice = `
             <div class="prediction-item" style="background: rgba(239, 68, 68, 0.1); border-color: #ef4444; margin-top: 12px;">
-                <strong>Ã¢Å¡Â Ã¯Â¸Â Notice:</strong>
+                <strong>ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Notice:</strong>
                 <span style="font-size: 13px;">Google AutoML unavailable: ${fallbackReason}. Using heuristic fallback.</span>
             </div>
             `;
@@ -5665,7 +5697,7 @@ async function getAutoMLPrediction() {
         if (getPredictionBtn) {
             getPredictionBtn.disabled = false;
             getPredictionBtn.style.opacity = '1';
-            getPredictionBtn.innerHTML = 'Ã°Å¸â€Â® Get Prediction';
+            getPredictionBtn.innerHTML = 'ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ‚Â® Get Prediction';
             getPredictionBtn.style.cursor = 'pointer';
         }
     } catch (err) {
@@ -5681,7 +5713,7 @@ async function getAutoMLPrediction() {
         }
         
         resultDiv.innerHTML = `<div class="prediction-item" style="color: #fee2e2; border-color: #fca5a5; background: rgba(254, 226, 226, 0.1); padding: 16px; border-radius: 8px;">
-            <strong>Ã¢ÂÅ’ Error:</strong>
+            <strong>ÃƒÂ¢Ã‚ÂÃ…â€™ Error:</strong>
             <span style="display: block; margin-top: 8px;">${errorMessage}</span>
             <p style="margin-top: 12px; font-size: 11px; opacity: 0.7;">Check the browser console (F12) for more details.</p>
         </div>`;
@@ -5690,7 +5722,7 @@ async function getAutoMLPrediction() {
         if (getPredictionBtn) {
             getPredictionBtn.disabled = false;
             getPredictionBtn.style.opacity = '1';
-            getPredictionBtn.innerHTML = 'Ã°Å¸â€Â® Get Prediction';
+            getPredictionBtn.innerHTML = 'ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ‚Â® Get Prediction';
             getPredictionBtn.style.cursor = 'pointer';
             console.log('getAutoMLPrediction() - Button re-enabled after error');
         }
@@ -5875,7 +5907,7 @@ async function acceptAIRecommendation() {
         
         // Build summary message with HTML formatting for better readability
         let messageHtml = '<div style="text-align:left;">';
-        messageHtml += '<p style="margin:0 0 12px 0; font-weight:600; color:#059669;">Ã¢Å“â€œ AI recommendations accepted!</p>';
+        messageHtml += '<p style="margin:0 0 12px 0; font-weight:600; color:#059669;">ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ AI recommendations accepted!</p>';
         
         if (populatedFields.length > 0) {
             messageHtml += '<div style="margin-bottom:12px;">';
@@ -6129,20 +6161,20 @@ function initCalendar() {
             Array.from(document.querySelectorAll('[id*="calendar"]')).map(el => el.id));
         return;
     }
-    console.log('Ã¢Å“â€œ Calendar container element found:', calendarEl);
+    console.log('ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Calendar container element found:', calendarEl);
     
     // DIAGNOSTIC: Check if FullCalendar is loaded
     // FullCalendar v6 uses different namespace - check both FullCalendar and window.FullCalendar
     let FullCalendarLib = null;
     if (typeof FullCalendar !== 'undefined') {
         FullCalendarLib = FullCalendar;
-        console.log('Ã¢Å“â€œ FullCalendar library found via FullCalendar namespace');
+        console.log('ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ FullCalendar library found via FullCalendar namespace');
     } else if (typeof window.FullCalendar !== 'undefined') {
         FullCalendarLib = window.FullCalendar;
-        console.log('Ã¢Å“â€œ FullCalendar library found via window.FullCalendar');
+        console.log('ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ FullCalendar library found via window.FullCalendar');
     } else if (typeof window !== 'undefined' && window.FullCalendar) {
         FullCalendarLib = window.FullCalendar;
-        console.log('Ã¢Å“â€œ FullCalendar library found via window object');
+        console.log('ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ FullCalendar library found via window object');
     }
     
     if (!FullCalendarLib) {
@@ -6168,7 +6200,7 @@ function initCalendar() {
         calendarEl.innerHTML = '<div style="text-align:center; padding:40px; color:#dc2626;"><p>Error: FullCalendar library failed to load. Please refresh the page.</p><p style="font-size:12px; margin-top:8px;">If the problem persists, check your internet connection or contact support.</p></div>';
         return;
     }
-    console.log('Ã¢Å“â€œ FullCalendar library loaded successfully');
+    console.log('ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ FullCalendar library loaded successfully');
     
     // DIAGNOSTIC: Check if calendar already exists
     if (calendar) {
@@ -6383,7 +6415,7 @@ function initCalendar() {
             message += `Type: ${extended.type || 'campaign'}\n`;
             if (extended.status) message += `Status: ${extended.status}\n`;
             if (extended.location) message += `Location: ${extended.location}\n`;
-            if (extended.budget) message += `Budget: Ã¢â€šÂ±${parseFloat(extended.budget).toLocaleString()}\n`;
+            if (extended.budget) message += `Budget: ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${parseFloat(extended.budget).toLocaleString()}\n`;
             message += `Start: ${event.start.toLocaleString()}\n`;
             if (event.end) message += `End: ${event.end.toLocaleString()}`;
             alert(message);
@@ -6408,7 +6440,7 @@ function initCalendar() {
     console.log('Calendar instance created, calling render()...');
     try {
         calendar.render();
-        console.log('Ã¢Å“â€œ Calendar rendered successfully');
+        console.log('ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Calendar rendered successfully');
     } catch (renderError) {
         console.error('CRITICAL: Calendar render() failed:', renderError);
         if (calendarEl) {
@@ -6479,7 +6511,7 @@ async function loadResources() {
         const campaignBreakdownEl = document.getElementById('campaignBreakdown');
         const materialsEl = document.getElementById('materialsUsed');
         
-        if (totalBudgetEl) totalBudgetEl.textContent = 'Ã¢â€šÂ±' + totalBudget.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (totalBudgetEl) totalBudgetEl.textContent = 'ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' + totalBudget.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         if (totalStaffEl) totalStaffEl.textContent = totalStaff;
         if (activeCampaignsEl) activeCampaignsEl.textContent = activeCount;
         
@@ -6649,7 +6681,7 @@ async function loadResourcesInline() {
         const staffBreakdownEl = document.getElementById('staffBreakdownInline');
         const activeBreakdownEl = document.getElementById('activeCampaignsBreakdownInline');
         
-        if (budgetEl) budgetEl.textContent = 'Ã¢â€šÂ±' + totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2});
+        if (budgetEl) budgetEl.textContent = 'ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' + totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2});
         if (staffEl) staffEl.textContent = totalStaff;
         if (activeEl) activeEl.textContent = activeCampaigns;
         if (breakdownEl) breakdownEl.textContent = campaigns.length + ' campaigns';
@@ -7167,7 +7199,7 @@ function loadCampaignsWithFilters() {
 let allBudgetItems = [];
 
 // Keep Financial & Budgeting totals consistent with the campaign Budget Breakdown.
-// Formula: Quantity Ãƒâ€” Unit Cost Ãƒâ€” Sessions/Days.
+// Formula: Quantity ÃƒÆ’Ã¢â‚¬â€ Unit Cost ÃƒÆ’Ã¢â‚¬â€ Sessions/Days.
 function calculateBudgetItemTotal(item) {
     const quantity = Number(item?.quantity || 0);
     const unitCost = Number(item?.unit_cost || 0);
@@ -7757,14 +7789,14 @@ function renderBudgetTable() {
     tbody.innerHTML = '';
     Object.values(groupedByCampaign).forEach(group => {
         const fundingBreakdown = [];
-        if (group.government_total > 0) fundingBreakdown.push(`Gov: Ã¢â€šÂ±${group.government_total.toLocaleString('en-PH', {minimumFractionDigits: 2})}`);
-        if (group.reimbursable_total > 0) fundingBreakdown.push(`Reimb: Ã¢â€šÂ±${group.reimbursable_total.toLocaleString('en-PH', {minimumFractionDigits: 2})}`);
+        if (group.government_total > 0) fundingBreakdown.push(`Gov: ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${group.government_total.toLocaleString('en-PH', {minimumFractionDigits: 2})}`);
+        if (group.reimbursable_total > 0) fundingBreakdown.push(`Reimb: ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${group.reimbursable_total.toLocaleString('en-PH', {minimumFractionDigits: 2})}`);
         
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; font-weight: 600;" title="${group.campaign_title}"><span style="color: #6366f1; font-weight: 700;">#${group.campaign_id}</span> ${group.campaign_title}</td>
             <td><span class="badge draft">${group.items.length} item${group.items.length > 1 ? 's' : ''}</span></td>
-            <td style="font-weight: 700; color: #059669;">Ã¢â€šÂ±${group.total_budget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+            <td style="font-weight: 700; color: #059669;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${group.total_budget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
             <td style="font-size: 12px; color: #64748b;">${fundingBreakdown.join('<br>') || '-'}</td>
             <td><span class="badge approved">Active</span></td>
             <td style="white-space: nowrap;">
@@ -7838,8 +7870,8 @@ function viewBudgetDetails(campaignId) {
                 <td>${item.item_name || '-'}</td>
                 <td><span class="badge ${item.item_type === 'material' ? 'scheduled' : 'draft'}">${item.item_type || 'consumable'}</span></td>
                 <td style="text-align: center;">${item.quantity || 0}</td>
-                <td style="text-align: right;">Ã¢â€šÂ±${parseFloat(item.unit_cost || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
-                <td style="text-align: right; font-weight: 600;">Ã¢â€šÂ±${itemTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                <td style="text-align: right;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${parseFloat(item.unit_cost || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                <td style="text-align: right; font-weight: 600;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${itemTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
                 <td><span class="badge ${fundingClass}">${fundingLabel}</span></td>
             </tr>
         `;
@@ -7856,7 +7888,7 @@ function viewBudgetDetails(campaignId) {
             </div>
             <div style="background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%); border-radius: 8px; padding: 16px; margin-bottom: 20px; text-align: center;">
                 <div style="font-size: 12px; color: #166534; font-weight: 600; text-transform: uppercase;">Total Budget</div>
-                <div style="font-size: 28px; font-weight: 700; color: #166534;">Ã¢â€šÂ±${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
+                <div style="font-size: 28px; font-weight: 700; color: #166534;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
             </div>
             <table class="data-table" style="width: 100%;">
                 <thead>
@@ -8146,7 +8178,7 @@ async function loadArchivedBudgets() {
                 <div style="background: #f8fafc; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <strong>${group.campaign_title}</strong>
-                        <span style="color: #64748b; font-size: 12px; margin-left: 8px;">${group.items.length} item(s) - Ã¢â€šÂ±${group.total.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
+                        <span style="color: #64748b; font-size: 12px; margin-left: 8px;">${group.items.length} item(s) - ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${group.total.toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
                     </div>
                     <div style="display: flex; gap: 8px;">
                         <button onclick="restoreBudgetItems(${campaignId})" class="btn btn-success" style="padding: 6px 12px; font-size: 12px; background: #10b981; color: white; border: none;">
@@ -8241,13 +8273,13 @@ async function deleteArchivedBudgetItems(campaignId) {
 
 // Update budget summary cards
 function updateBudgetSummary(summary) {
-    const formatCurrency = (val) => 'Ã¢â€šÂ±' + Number(val || 0).toLocaleString('en-PH', {
+    const formatCurrency = (val) => 'ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' + Number(val || 0).toLocaleString('en-PH', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     });
 
     // Do not trust the legacy API summary here because it can calculate only
-    // quantity Ãƒâ€” unit_cost. Recalculate from the actual budget rows so this
+    // quantity ÃƒÆ’Ã¢â‚¬â€ unit_cost. Recalculate from the actual budget rows so this
     // section uses the exact same formula as Budget Breakdown.
     const activeItems = (allBudgetItems || []).filter(item => !item.is_archived);
 
@@ -8382,8 +8414,8 @@ async function loadSchedules() {
                 <td>${formatDateTime(s.last_posting_attempt)}</td>
                 <td>${s.notes || '-'}</td>
                 <td>
-                    ${s.status === 'failed' ? `<button class="btn btn-secondary" onclick="resendSchedule(${campaignId}, ${s.id})" style="padding: 4px 8px; font-size: 12px;">Ã°Å¸â€â€ž Re-send</button>` : ''}
-                    ${s.status === 'pending' ? `<button class="btn btn-secondary" onclick="sendSchedule(${campaignId}, ${s.id})" style="padding: 4px 8px; font-size: 12px;">Ã°Å¸â€œÂ¤ Send</button>` : ''}
+                    ${s.status === 'failed' ? `<button class="btn btn-secondary" onclick="resendSchedule(${campaignId}, ${s.id})" style="padding: 4px 8px; font-size: 12px;">ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ¢â‚¬Å¾ Re-send</button>` : ''}
+                    ${s.status === 'pending' ? `<button class="btn btn-secondary" onclick="sendSchedule(${campaignId}, ${s.id})" style="padding: 4px 8px; font-size: 12px;">ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã‚Â¤ Send</button>` : ''}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -8642,8 +8674,8 @@ async function loadCampaignBudgetBreakdown(campaignId) {
                 <tr>
                     <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9;">${item.item_name || '-'}</td>
                     <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: center;">${item.quantity || 0}</td>
-                    <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: right;">Ã¢â€šÂ±${parseFloat(item.unit_cost || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
-                    <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 600;">Ã¢â€šÂ±${itemTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: right;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${parseFloat(item.unit_cost || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 600;">ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${itemTotal.toLocaleString('en-PH', {minimumFractionDigits: 2})}</td>
                     <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9;"><span style="background: ${item.funding_source === 'government_allocated' ? '#dbeafe' : '#fef3c7'}; color: ${item.funding_source === 'government_allocated' ? '#1e40af' : '#92400e'}; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">${fundingLabel}</span></td>
                 </tr>
             `;
@@ -8653,7 +8685,7 @@ async function loadCampaignBudgetBreakdown(campaignId) {
             <div style="background: #f0fdf4; padding: 16px; border-radius: 10px; border-left: 4px solid #22c55e;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <div style="font-size: 12px; font-weight: 600; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Budget Line Items</div>
-                    <div style="font-size: 16px; font-weight: 700; color: #166534;">Total: Ã¢â€šÂ±${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
+                    <div style="font-size: 16px; font-weight: 700; color: #166534;">Total: ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±${totalBudget.toLocaleString('en-PH', {minimumFractionDigits: 2})}</div>
                 </div>
                 <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
                     <thead>
@@ -9142,7 +9174,7 @@ async function recommendApproval(campaignId) {
     refreshAllCampaignViews();
 }
 
-// Close Campaign (Captain only - Approved/Ongoing Ã¢â€ â€™ Completed)
+// Close Campaign (Captain only - Approved/Ongoing ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Completed)
 async function closeCampaign(campaignId) {
     if (!isCaptain() && !isAdmin()) {
         showToast('Only Captain can close campaigns.', 'error');
@@ -9310,7 +9342,7 @@ async function loadArchivedCampaignsList() {
                 <tr style="border-bottom: 1px solid #e2e8f0;">
                     <td style="padding: 12px 16px; color: #64748b;">${c.id}</td>
                     <td style="padding: 12px 16px; font-weight: 500; color: #0f172a;">${c.title || 'Untitled'}</td>
-                    <td style="padding: 12px 16px; color: #64748b;">${c.category || 'Ã¢â‚¬â€'}</td>
+                    <td style="padding: 12px 16px; color: #64748b;">${c.category || 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'}</td>
                     <td style="padding: 12px 16px;">
                         <button class="btn btn-success" onclick="restoreArchivedCampaign(${c.id})" style="padding: 4px 10px; font-size: 11px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 4px;">
                             <i class="fas fa-undo"></i> Restore
@@ -9511,11 +9543,11 @@ async function initializeCampaigns() {
 function showCampaignHowItWorks() {
     const tips = `
         <div style="max-width: 700px; padding: 24px;">
-            <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 22px;">Ã°Å¸â€œâ€¹ Campaign Module - How It Works</h3>
+            <h3 style="margin: 0 0 20px 0; color: #0f172a; font-size: 22px;">ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã¢â‚¬Â¹ Campaign Module - How It Works</h3>
             <div style="line-height: 1.8; color: #475569; font-size: 14px;">
                 
                 <div style="margin-bottom: 24px; padding: 16px; background: #f0fdfa; border-radius: 8px; border-left: 4px solid #4c8a89;">
-                    <strong style="color: #065f46; display: block; margin-bottom: 12px; font-size: 16px;">Ã°Å¸Å½Â¯ Complete Campaign Workflow (10 Steps):</strong>
+                    <strong style="color: #065f46; display: block; margin-bottom: 12px; font-size: 16px;">ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â¯ Complete Campaign Workflow (10 Steps):</strong>
                     <ol style="margin: 0; padding-left: 20px; line-height: 2;">
                         <li><strong>Create Campaign</strong> - Fill out campaign details (title, category, dates, location, etc.)</li>
                         <li><strong>Select Audience & Content</strong> - Choose target audience segments and attach materials from Content Repository</li>
@@ -9531,7 +9563,7 @@ function showCampaignHowItWorks() {
                 </div>
                 
                 <div style="margin-bottom: 24px;">
-                    <strong style="color: #0f172a; display: block; margin-bottom: 12px; font-size: 16px;">Ã°Å¸â€œâ€¹ Main Sections Explained:</strong>
+                    <strong style="color: #0f172a; display: block; margin-bottom: 12px; font-size: 16px;">ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã¢â‚¬Â¹ Main Sections Explained:</strong>
                     <ul style="margin: 0; padding-left: 20px;">
                         <li><strong>Plan New Campaign</strong> - Create campaigns with all details (title, category, dates, location, budget, staff, materials)</li>
                         <li><strong>AI-Powered Deployment Optimization</strong> - Provides decision support for optimal posting times through AI-powered analysis (designed to support Google AutoML integration or heuristic-based algorithms)</li>
@@ -9545,7 +9577,7 @@ function showCampaignHowItWorks() {
                 </div>
                 
                 <div style="margin-bottom: 24px;">
-                    <strong style="color: #0f172a; display: block; margin-bottom: 12px; font-size: 16px;">Ã°Å¸â€â€” Conceptual Integration with Content Module:</strong>
+                    <strong style="color: #0f172a; display: block; margin-bottom: 12px; font-size: 16px;">ÃƒÂ°Ã…Â¸Ã¢â‚¬ÂÃ¢â‚¬â€ Conceptual Integration with Content Module:</strong>
                     <ul style="margin: 0; padding-left: 20px;">
                         <li><strong>Materials Selection</strong> - When creating a campaign, you can select materials from the Content Repository</li>
                         <li><strong>Approved Content Only</strong> - Only approved content items can be attached to campaigns</li>
@@ -9555,7 +9587,7 @@ function showCampaignHowItWorks() {
                 </div>
                 
                 <div style="margin-bottom: 24px;">
-                    <strong style="color: #0f172a; display: block; margin-bottom: 12px; font-size: 16px;">Ã°Å¸Â¤â€“ AI Scheduling Flow:</strong>
+                    <strong style="color: #0f172a; display: block; margin-bottom: 12px; font-size: 16px;">ÃƒÂ°Ã…Â¸Ã‚Â¤Ã¢â‚¬â€œ AI Scheduling Flow:</strong>
                     <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
                         <p style="margin: 0 0 8px 0;"><strong>Step-by-Step:</strong></p>
                         <ol style="margin: 0; padding-left: 20px; font-size: 13px;">
@@ -9574,7 +9606,7 @@ function showCampaignHowItWorks() {
                 </div>
                 
                 <div style="margin-bottom: 24px;">
-                    <strong style="color: #0f172a; display: block; margin-bottom: 12px; font-size: 16px;">Ã°Å¸â€™Â¡ Pro Tips:</strong>
+                    <strong style="color: #0f172a; display: block; margin-bottom: 12px; font-size: 16px;">ÃƒÂ°Ã…Â¸Ã¢â‚¬â„¢Ã‚Â¡ Pro Tips:</strong>
                     <ul style="margin: 0; padding-left: 20px;">
                         <li><strong>Complete Form First</strong> - Fill out all campaign details before requesting AI recommendation</li>
                         <li><strong>Attach Materials</strong> - Link approved content from Content Repository for better campaign planning</li>
@@ -9586,7 +9618,7 @@ function showCampaignHowItWorks() {
                 </div>
                 
                 <div style="background: #fff7ed; padding: 12px; border-radius: 8px; border-left: 4px solid #f59e0b;">
-                    <strong style="color: #92400e;">Ã¢Å¡Â Ã¯Â¸Â Important Notes:</strong>
+                    <strong style="color: #92400e;">ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Important Notes:</strong>
                     <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 13px;">
                         <li>Draft Schedule field is disabled - schedule must be set via AI recommendation workflow</li>
                         <li>AI recommendation workflow is designed to guide schedule selection and provide decision support</li>
@@ -9725,7 +9757,7 @@ function showAIHowItWorksModal() {
     // Build used sources HTML
     let usedSourcesHTML = '';
     if (usedSources.length > 0) {
-        usedSourcesHTML = '<div style="background: #f0fdf4; border-left: 4px solid #10b981; border-radius: 6px; padding: 12px; margin-bottom: 16px;"><strong style="color: #065f46; display: block; margin-bottom: 8px;">Ã¢Å“â€œ Data sources actually used:</strong><ul style="margin: 0; padding-left: 20px; color: #0f172a; font-size: 13px; line-height: 1.8;">';
+        usedSourcesHTML = '<div style="background: #f0fdf4; border-left: 4px solid #10b981; border-radius: 6px; padding: 12px; margin-bottom: 16px;"><strong style="color: #065f46; display: block; margin-bottom: 8px;">ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Data sources actually used:</strong><ul style="margin: 0; padding-left: 20px; color: #0f172a; font-size: 13px; line-height: 1.8;">';
         usedSources.forEach(source => {
             const countText = source.count > 0 ? ` (${source.count} records found)` : '';
             usedSourcesHTML += `<li><strong>${source.name}</strong>${countText} - <code>${source.table}</code></li>`;
@@ -9736,7 +9768,7 @@ function showAIHowItWorksModal() {
     // Build not used sources HTML
     let notUsedSourcesHTML = '';
     if (notUsedSources.length > 0) {
-        notUsedSourcesHTML = '<div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 16px;"><strong style="color: #92400e; display: block; margin-bottom: 8px;">Ã¢Å“â€“ Data sources not used:</strong><ul style="margin: 0; padding-left: 20px; color: #78350f; font-size: 13px; line-height: 1.8;">';
+        notUsedSourcesHTML = '<div style="background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 12px; margin-bottom: 16px;"><strong style="color: #92400e; display: block; margin-bottom: 8px;">ÃƒÂ¢Ã…â€œÃ¢â‚¬â€œ Data sources not used:</strong><ul style="margin: 0; padding-left: 20px; color: #78350f; font-size: 13px; line-height: 1.8;">';
         notUsedSources.forEach(source => {
             notUsedSourcesHTML += `<li><strong>${source.name}</strong> - ${source.reason}</li>`;
         });
@@ -9786,7 +9818,7 @@ function getAIRecommendationsHTML(recommendations) {
                     <strong style="color: #374151; font-size: 14px;">AI Recommendations</strong>
                 </div>
                 <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.6;">
-                    Not generated Ã¢â‚¬â€œ insufficient factual records in Nagkaisang Nayon dataset. Schedule recommendation is still available.
+                    Not generated ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ insufficient factual records in Nagkaisang Nayon dataset. Schedule recommendation is still available.
                 </p>
             </div>
         `;
@@ -9825,7 +9857,7 @@ function getAIRecommendationsHTML(recommendations) {
             const materials = Object.entries(rec.value);
             valueDisplay = materials.length > 0 ? materials.map(([mat, qty]) => `${mat} (${qty})`).join(', ') : 'None';
         } else if (field === 'budget') {
-            valueDisplay = 'Ã¢â€šÂ±' + parseFloat(rec.value).toLocaleString('en-US', {minimumFractionDigits: 2});
+            valueDisplay = 'ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â±' + parseFloat(rec.value).toLocaleString('en-US', {minimumFractionDigits: 2});
         } else {
             valueDisplay = String(rec.value);
         }
@@ -9903,7 +9935,9 @@ window.getDataFactorsHTML = getDataFactorsHTML;
 window.getAIRecommendationsHTML = getAIRecommendationsHTML;
 window.getAIDecisionBasisHTML = getAIDecisionBasisHTML;
 </script>
-<script src="<?php echo htmlspecialchars($basePath . '/public/campaigns_js_functions.js'); ?>"></script>
+<script src="<?php
+header('Content-Type: text/html; charset=UTF-8'); echo htmlspecialchars($basePath . '/public/campaigns_js_functions.js'); ?>"></script>
     
-    <?php include __DIR__ . '/../header/includes/footer.php'; ?>
+    <?php
+header('Content-Type: text/html; charset=UTF-8'); include __DIR__ . '/../header/includes/footer.php'; ?>
     </main> <!-- /.main-content-wrapper -->
