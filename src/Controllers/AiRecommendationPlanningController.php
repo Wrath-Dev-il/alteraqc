@@ -817,7 +817,7 @@ class AiRecommendationPlanningController
                 ),
                 'amount' => (float) ($row['total_estimated_cost'] ?? 0),
                 'notes' => sprintf(
-                    'Materials: ₱%s | Transportation: ₱%s | Other: ₱%s | Basis: %s',
+                    'Materials: â‚±%s | Transportation: â‚±%s | Other: â‚±%s | Basis: %s',
                     number_format((float) ($row['material_allocation'] ?? 0), 2),
                     number_format((float) ($row['transportation_cost'] ?? 0), 2),
                     number_format((float) ($row['other_cost'] ?? 0), 2),
@@ -1660,7 +1660,7 @@ class AiRecommendationPlanningController
         foreach ($items as $item) {
             if (is_scalar($item)) {
                 $text = trim((string) $item);
-                if ($text !== '') $lines[] = '• ' . $text;
+                if ($text !== '') $lines[] = 'â€¢ ' . $text;
             }
         }
         return empty($lines) ? null : implode("\n", $lines);
@@ -1905,10 +1905,10 @@ class AiRecommendationPlanningController
             }
 
             $snapshot = $this->lookupSourceReport($normalized, $recommendation);
-            if ($snapshot['is_missing_from_source']) {
-                $warnings[] = 'Supporting report ' . $normalized['external_report_id'] . ' could not be fully restored from the source database.';
-            }
 
+            // Keep the fallback supporting-report snapshot and internal
+            // is_missing_from_source flag, but do not expose a warning to users
+            // when the original source row is unavailable.
             $stmt->execute([
                 $recommendationId,
                 $normalized['source_type'],
