@@ -1569,18 +1569,194 @@ class CampaignController
             http_response_code(401);
             return ['error' => 'Authentication required'];
         }
+
         try {
-            $staff = $this->pdo->query('SELECT id, name, role, qty FROM campaign_department_reference_staff ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
-            $partners = $this->pdo->query("SELECT id, name, organization_type FROM campaign_department_partners WHERE COALESCE(status,'active') <> 'archived' ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
-            $segments = $this->pdo->query('SELECT id, segment_name, geographic_scope, location_reference, sector_type, risk_level, is_archived FROM campaign_department_audience_segments ORDER BY is_archived ASC, segment_name ASC')->fetchAll(PDO::FETCH_ASSOC);
-            return ['data' => ['reference_staff' => $staff, 'available_partners' => $partners, 'audience_segments' => $segments]];
-        } catch (\PDOException $e) {
-            error_log('CampaignController::manualPlanningOptions - ' . $e->getMessage());
+            $tableExists = function (string $table): bool {
+                $stmt = $this->pdo->prepare("
+                    SELECT COUNT(*)
+                    FROM information_schema.TABLES
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = ?
+                ");
+                $stmt->execute([$table]);
+                return (int) $stmt->fetchColumn() > 0;
+            };
+
+            $columnExists = function (string $table, string $column): bool {
+                $stmt = $this->pdo->prepare("
+                    SELECT COUNT(*)
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = ?
+                      AND COLUMN_NAME = ?
+                ");
+                $stmt->execute([$table, $column]);
+                return (int) $stmt->fetchColumn() > 0;
+            };
+
+            $staff = [];
+            $partners = [];
+            $segments = [];
+
+            /*
+             * REFERENCE STAFF
+             *
+             * Older production schemas may not yet contain qty.
+             * Keep the planner usable by returning qty = 1 when absent.
+             */
+            if (
+                $tableExists('campaign_department_reference_staff') &&
+                $columnExists('campaign_department_reference_staff', 'id') &&
+                $columnExists('campaign_department_reference_staff', 'name')
+            ) {
+                $roleExpr = $columnExists('campaign_department_reference_staff', 'role')
+                    ? 'role'
+                    : 'NULL AS role';
+
+                $qtyExpr = $columnExists('campaign_department_reference_staff', 'qty')
+                    ? 'qty'
+                    : '1 AS qty';
+
+                $staffSql = "
+                    SELECT id, name, {$roleExpr}, {$qtyExpr}
+                    FROM campaign_department_reference_staff
+                    ORDER BY name ASC
+                ";
+
+                $staff = $this->pdo
+                    ->query($staffSql)
+                    ->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            /*
+             * AVAILABLE PARTNERS
+             *
+             * status and organization_type are optional for compatibility
+             * with older imported database structures.
+             */
+            if (
+                $tableExists('campaign_department_partners') &&
+                $columnExists('campaign_department_partners', 'id') &&
+                $columnExists('campaign_department_partners', 'name')
+            ) {
+                $organizationExpr = $columnExists(
+                    'campaign_department_partners',
+                    'organization_type'
+                )
+                    ? 'organization_type'
+                    : 'NULL AS organization_type';
+
+                $partnerWhere = $columnExists(
+                    'campaign_department_partners',
+                    'status'
+                )
+                    ? " WHERE COALESCE(status, 'active') <> 'archived'"
+                    : '';
+
+                $partnerSql = "
+                    SELECT id, name, {$organizationExpr}
+                    FROM campaign_department_partners
+                    {$partnerWhere}
+                    ORDER BY name ASC
+                ";
+
+                $partners = $this->pdo
+                    ->query($partnerSql)
+                    ->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            /*
+             * AUDIENCE SEGMENTS
+             *
+             * The manual planner only requires id and segment_name.
+             * Optional metadata is returned as NULL/default when an
+             * older production schema does not contain that column.
+             */
+            if (
+                $tableExists('campaign_department_audience_segments') &&
+                $columnExists('campaign_department_audience_segments', 'id') &&
+                $columnExists('campaign_department_audience_segments', 'segment_name')
+            ) {
+                $geoExpr = $columnExists(
+                    'campaign_department_audience_segments',
+                    'geographic_scope'
+                )
+                    ? 'geographic_scope'
+                    : 'NULL AS geographic_scope';
+
+                $locationExpr = $columnExists(
+                    'campaign_department_audience_segments',
+                    'location_reference'
+                )
+                    ? 'location_reference'
+                    : 'NULL AS location_reference';
+
+                $sectorExpr = $columnExists(
+                    'campaign_department_audience_segments',
+                    'sector_type'
+                )
+                    ? 'sector_type'
+                    : 'NULL AS sector_type';
+
+                $riskExpr = $columnExists(
+                    'campaign_department_audience_segments',
+                    'risk_level'
+                )
+                    ? 'risk_level'
+                    : 'NULL AS risk_level';
+
+                $archivedExpr = $columnExists(
+                    'campaign_department_audience_segments',
+                    'is_archived'
+                )
+                    ? 'is_archived'
+                    : '0 AS is_archived';
+
+                $orderBy = $columnExists(
+                    'campaign_department_audience_segments',
+                    'is_archived'
+                )
+                    ? 'is_archived ASC, segment_name ASC'
+                    : 'segment_name ASC';
+
+                $segmentSql = "
+                    SELECT
+                        id,
+                        segment_name,
+                        {$geoExpr},
+                        {$locationExpr},
+                        {$sectorExpr},
+                        {$riskExpr},
+                        {$archivedExpr}
+                    FROM campaign_department_audience_segments
+                    ORDER BY {$orderBy}
+                ";
+
+                $segments = $this->pdo
+                    ->query($segmentSql)
+                    ->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            return [
+                'data' => [
+                    'reference_staff' => $staff,
+                    'available_partners' => $partners,
+                    'audience_segments' => $segments,
+                ],
+            ];
+        } catch (\Throwable $e) {
+            error_log(
+                'CampaignController::manualPlanningOptions - ' .
+                $e->getMessage()
+            );
+
             http_response_code(500);
-            return ['error' => 'Unable to load manual planner reference data'];
+
+            return [
+                'error' => 'Unable to load manual planner reference data',
+            ];
         }
     }
-
     /**
      * Return all data used by the 8-step manual campaign planner.
      */

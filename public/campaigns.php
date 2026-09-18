@@ -1815,7 +1815,7 @@ require_once __DIR__ . '/../sidebar/includes/block_viewer_access.php';
     <?php if (!$isViewer): ?>
     <section class="card" id="budgeting-section">
         <div class="section-header" style="margin-bottom: 20px;">
-            <h2 class="section-title analytics-accent">Ã°Å¸â€™Â° Financial & Budgeting</h2>
+            <h2 class="section-title analytics-accent"><i class="fas fa-coins" style="margin-right: 8px;"></i> Financial &amp; Budgeting</h2>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button class="btn btn-primary" onclick="openBudgetModal()" style="display: flex; align-items: center; gap: 6px;">
                     <i class="fas fa-plus"></i> Add Budget Line Items
