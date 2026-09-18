@@ -1456,27 +1456,28 @@ class AiRecommendationPlanningController
         // a numeric target, use the source report count as a conservative data-backed
         // minimum. The value is always at least 1, so AI-created segments never start at 0.
         $recommendedTotalQty = $this->estimateAiAudienceQuantity($rec, $audienceText);
-        $combinationCount = max(1, count($sectors) * count($locations));
-        $qtyPerSegmentLocation = max(1, (int) ceil($recommendedTotalQty / $combinationCount));
+        $qtyPerSector = max(1, (int) ceil($recommendedTotalQty / max(1, count($sectors))));
+        
 
-        $findBySector = $this->pdo->prepare("\n            SELECT id, segment_name, COALESCE(qty, 0) AS qty, location_reference, geographies_json\n            FROM campaign_department_audience_segments\n            WHERE COALESCE(is_archived, 0) = 0 AND sector_type = ?\n            ORDER BY id DESC\n        ");
-        $updateSegment = $this->pdo->prepare("\n            UPDATE campaign_department_audience_segments\n            SET qty = COALESCE(qty, 0) + ?,\n                geographies_json = ?,\n                location_reference = COALESCE(NULLIF(location_reference, ''), ?),\n                risk_level = ?,\n                basis_of_segmentation = 'Incident pattern reference',\n                criteria = ?,\n                is_archived = 0,\n                updated_at = CURRENT_TIMESTAMP\n            WHERE id = ?\n        ");
+        $findByName = $this->pdo->prepare("\n            SELECT id, segment_name, COALESCE(qty, 0) AS qty, location_reference, geographies_json\n            FROM campaign_department_audience_segments\n            WHERE segment_name = ?\n            ORDER BY id DESC\n        ");
+        $updateSegment = $this->pdo->prepare("\n            UPDATE campaign_department_audience_segments\n            SET qty = ?,\n                geographies_json = ?,\n                location_reference = COALESCE(NULLIF(location_reference, ''), ?),\n                risk_level = ?,\n                basis_of_segmentation = 'Incident pattern reference',\n                criteria = ?,\n                is_archived = 0,\n                updated_at = CURRENT_TIMESTAMP\n            WHERE id = ?\n        ");
         $insertSegment = $this->pdo->prepare("\n            INSERT INTO campaign_department_audience_segments\n                (segment_name, qty, geographic_scope, location_reference, sector_type, risk_level,\n                 geographies_json, basis_of_segmentation, criteria, is_archived)\n            VALUES (?, ?, 'Barangay', ?, ?, ?, ?, 'Incident pattern reference', ?, 0)\n        ");
         $link = $this->pdo->prepare('INSERT IGNORE INTO campaign_department_campaign_audience (campaign_id, segment_id) VALUES (?, ?)');
 
         $linkedIds = [];
         foreach ($sectors as $sector) {
             foreach ($locations as $location) {
-                $findBySector->execute([$sector]);
-                $candidates = $findBySector->fetchAll(PDO::FETCH_ASSOC);
-                $existing = $this->findAiSegmentForLocation($candidates, $location);
+                $segmentName = 'AI Target - ' . $sector . ' - Rec #' . $recommendationId;
+                $findByName->execute([$segmentName]);
+
+                $existing = $findByName->fetch(PDO::FETCH_ASSOC);
 
                 $criteria = json_encode([
                     'source' => 'ai_recommendation',
                     'recommendation_id' => $recommendationId,
                     'target_audience' => $audienceText,
                     'recommended_qty_total' => $recommendedTotalQty,
-                    'qty_added_for_this_location' => $qtyPerSegmentLocation,
+                    'assigned_qty_for_sector' => $qtyPerSector,
                     'qty_basis' => $this->aiAudienceQuantityBasis($rec, $audienceText),
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
@@ -1488,7 +1489,7 @@ class AiRecommendationPlanningController
                         $location
                     );
                     $updateSegment->execute([
-                        $qtyPerSegmentLocation,
+                        $qtyPerSector,
                         json_encode($mergedLocations, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                         $location,
                         $risk,
@@ -1496,10 +1497,10 @@ class AiRecommendationPlanningController
                         $segmentId,
                     ]);
                 } else {
-                    $segmentName = 'AI Target - ' . $sector . ' - Rec #' . $recommendationId;
+
                     $insertSegment->execute([
                         $segmentName,
-                        $qtyPerSegmentLocation,
+                        $qtyPerSector,
                         $location,
                         $sector,
                         $risk,
